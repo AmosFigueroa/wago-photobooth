@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Palette, Smile, Check, ArrowLeft, Grid, Pipette } from "lucide-react"; // Tambah icon Pipette
+import { Palette, Smile, Check, ArrowLeft, Pipette } from "lucide-react";
 import { usePhoto } from "../PhotoContext";
 
 const Editor = () => {
@@ -10,15 +10,19 @@ const Editor = () => {
 
   const initialLayout = sessionConfig?.layout || "strip-4";
 
-  // --- STATE BARU ---
+  // --- STATE ---
   const [layoutType, setLayoutType] = useState(initialLayout);
   const [bgType, setBgType] = useState("color"); // 'color' atau 'pattern'
-  const [frameColor, setFrameColor] = useState("#ffffff");
-  const [selectedPattern, setSelectedPattern] = useState("dots"); // Nama pattern aktif
+  const [frameColor, setFrameColor] = useState("#ffffff"); // Warna Solid Background
+
+  // STATE BARU: Warna khusus untuk Pattern/Tekstur
+  const [patternColor, setPatternColor] = useState("#ff4785"); // Default pink
+  const [selectedPattern, setSelectedPattern] = useState("dots");
+
   const [activeTab, setActiveTab] = useState("frame");
   const [stickers, setStickers] = useState([]);
 
-  // Preset Warna
+  // Preset Warna Solid
   const colors = [
     "#ffffff",
     "#000000",
@@ -31,8 +35,6 @@ const Editor = () => {
     "#fff3e0",
     "#e0f2f1",
   ];
-
-  // Pilihan Stiker
   const stickerOptions = [
     "❤️",
     "⭐",
@@ -48,65 +50,176 @@ const Editor = () => {
     "🌈",
   ];
 
-  // Pilihan Pattern (Tekstur)
+  // --- DATA POLA BARU (LEBIH BANYAK VARIASI) ---
+  // Kita hapus property 'color' hardcoded, karena sekarang warnanya dinamis.
   const patterns = [
-    { id: "dots", name: "Polka", color: "#ffcdd2" },
-    { id: "stripes", name: "Garis", color: "#bbdefb" },
-    { id: "checkers", name: "Catur", color: "#e1bee7" },
-    { id: "grid", name: "Kotak", color: "#c8e6c9" },
-    { id: "confetti", name: "Pesta", color: "#fff9c4" },
-    { id: "stars", name: "Bintang", color: "#ffe0b2" },
+    // Klasik
+    { id: "dots", name: "Polka" },
+    { id: "stripes", name: "Garis Lurus" },
+    { id: "grid", name: "Kotak" },
+    { id: "checkers", name: "Catur" },
+    // Bentuk Geometris
+    { id: "diagonal", name: "Diagonal" },
+    { id: "triangles", name: "Segitiga" },
+    { id: "zigzag", name: "Zigzag" },
+    { id: "cross", name: "Silang" },
+    { id: "plus", name: "Plus" },
+    // Bentuk Organik & Seru
+    { id: "waves", name: "Ombak" },
+    { id: "confetti", name: "Pesta" },
+    { id: "stars", name: "Bintang" },
+    { id: "hearts", name: "Hati" },
+    { id: "circles", name: "Lingkaran" },
+    { id: "diamond", name: "Wajik" },
+    { id: "bricks", name: "Bata" },
   ];
 
-  // --- FUNGSI GENERATOR PATTERN/TEKSTUR (Aman tanpa Load Image luar) ---
-  const createPattern = (ctx, type) => {
+  // --- FUNGSI GENERATOR PATTERN (DIPERBARUI DENGAN WARNA DINAMIS) ---
+  const createPattern = (ctx, type, color) => {
     const tCanvas = document.createElement("canvas");
     const tCtx = tCanvas.getContext("2d");
 
-    // Ukuran dasar tile pattern
-    const size = 40;
+    const size = 40; // Ukuran tile dasar
     tCanvas.width = size;
     tCanvas.height = size;
 
-    // Background dasar pattern (biasanya putih/transparan)
+    // Background dasar tile (Putih transparan agar warna solid di belakangnya tetap terlihat sedikit jika mau, atau putih solid)
     tCtx.fillStyle = "#ffffff";
     tCtx.fillRect(0, 0, size, size);
 
+    // Set warna pola sesuai input user
+    tCtx.fillStyle = color;
+    tCtx.strokeStyle = color;
+
     switch (type) {
+      // --- KLASIK ---
       case "dots":
-        tCtx.fillStyle = "#ff80ab"; // Pink Dots
         tCtx.beginPath();
         tCtx.arc(size / 2, size / 2, 6, 0, 2 * Math.PI);
         tCtx.fill();
         break;
       case "stripes":
-        tCtx.strokeStyle = "#42a5f5"; // Blue Stripes
         tCtx.lineWidth = 4;
         tCtx.beginPath();
-        tCtx.moveTo(0, size);
-        tCtx.lineTo(size, 0);
+        tCtx.moveTo(0, 0);
+        tCtx.lineTo(size, size);
         tCtx.stroke();
         break;
-      case "checkers":
-        tCtx.fillStyle = "#ba68c8"; // Purple Checkers
-        tCtx.fillRect(0, 0, size / 2, size / 2);
-        tCtx.fillRect(size / 2, size / 2, size / 2, size / 2);
-        break;
       case "grid":
-        tCtx.strokeStyle = "#66bb6a"; // Green Grid
         tCtx.lineWidth = 2;
         tCtx.strokeRect(0, 0, size, size);
         break;
+      case "checkers":
+        tCtx.fillRect(0, 0, size / 2, size / 2);
+        tCtx.fillRect(size / 2, size / 2, size / 2, size / 2);
+        break;
+
+      // --- GEOMETRIS ---
+      case "diagonal":
+        tCtx.lineWidth = 2;
+        tCtx.beginPath();
+        tCtx.moveTo(0, size / 2);
+        tCtx.lineTo(size / 2, 0);
+        tCtx.stroke();
+        tCtx.beginPath();
+        tCtx.moveTo(size / 2, size);
+        tCtx.lineTo(size, size / 2);
+        tCtx.stroke();
+        break;
+      case "triangles":
+        tCtx.beginPath();
+        tCtx.moveTo(size / 2, 10);
+        tCtx.lineTo(10, size - 10);
+        tCtx.lineTo(size - 10, size - 10);
+        tCtx.closePath();
+        tCtx.fill();
+        break;
+      case "zigzag":
+        tCtx.lineWidth = 3;
+        tCtx.beginPath();
+        tCtx.moveTo(0, size / 2);
+        tCtx.lineTo(size / 4, size / 4);
+        tCtx.lineTo(size * 0.75, size * 0.75);
+        tCtx.lineTo(size, size / 2);
+        tCtx.stroke();
+        break;
+      case "cross":
+        tCtx.lineWidth = 3;
+        tCtx.beginPath();
+        tCtx.moveTo(10, 10);
+        tCtx.lineTo(size - 10, size - 10);
+        tCtx.stroke();
+        tCtx.beginPath();
+        tCtx.moveTo(size - 10, 10);
+        tCtx.lineTo(10, size - 10);
+        tCtx.stroke();
+        break;
+      case "plus":
+        tCtx.lineWidth = 4;
+        tCtx.beginPath();
+        tCtx.moveTo(size / 2, 5);
+        tCtx.lineTo(size / 2, size - 5);
+        tCtx.stroke();
+        tCtx.beginPath();
+        tCtx.moveTo(5, size / 2);
+        tCtx.lineTo(size - 5, size / 2);
+        tCtx.stroke();
+        break;
+
+      // --- ORGANIK ---
+      case "waves":
+        tCtx.lineWidth = 3;
+        tCtx.beginPath();
+        tCtx.moveTo(0, size / 2);
+        tCtx.bezierCurveTo(
+          size / 4,
+          size / 4,
+          size * 0.75,
+          size * 0.75,
+          size,
+          size / 2
+        );
+        tCtx.stroke();
+        break;
       case "confetti":
-        tCtx.fillStyle = "#fbc02d"; // Yellow Confetti
-        tCtx.fillRect(10, 10, 5, 10);
-        tCtx.fillStyle = "#ff5252";
-        tCtx.fillRect(25, 25, 8, 4);
+        tCtx.fillRect(10, 10, 6, 10);
+        tCtx.fillRect(25, 25, 10, 6);
+        tCtx.fillRect(5, 30, 8, 8);
         break;
       case "stars":
-        tCtx.fillStyle = "#ff9800"; // Orange Stars
-        tCtx.font = "20px Arial";
-        tCtx.fillText("★", 10, 30);
+        tCtx.font = "24px Arial";
+        tCtx.fillText("★", 8, 28);
+        break;
+      case "hearts":
+        tCtx.font = "24px Arial";
+        tCtx.fillText("♥", 8, 28);
+        break;
+      case "circles":
+        tCtx.beginPath();
+        tCtx.arc(size / 2, size / 2, 10, 0, 2 * Math.PI);
+        tCtx.stroke();
+        break;
+      case "diamond":
+        tCtx.beginPath();
+        tCtx.moveTo(size / 2, 5);
+        tCtx.lineTo(size - 5, size / 2);
+        tCtx.lineTo(size / 2, size - 5);
+        tCtx.lineTo(5, size / 2);
+        tCtx.closePath();
+        tCtx.fill();
+        break;
+      case "bricks":
+        tCtx.lineWidth = 2;
+        tCtx.strokeRect(0, 0, size, size / 2);
+        tCtx.strokeRect(0, size / 2, size, size / 2);
+        tCtx.beginPath();
+        tCtx.moveTo(size / 2, 0);
+        tCtx.lineTo(size / 2, size / 2);
+        tCtx.stroke();
+        tCtx.beginPath();
+        tCtx.moveTo(size / 2, size / 2);
+        tCtx.lineTo(size / 2, size);
+        tCtx.stroke();
         break;
       default:
         break;
@@ -115,7 +228,7 @@ const Editor = () => {
     return ctx.createPattern(tCanvas, "repeat");
   };
 
-  // --- LOGIKA UTAMA MENGGAMBAR CANVAS ---
+  // --- LOGIKA DRAWING UTAMA ---
   useEffect(() => {
     if (rawPhotos.length === 0) {
       navigate("/booth");
@@ -130,7 +243,6 @@ const Editor = () => {
     const padding = 40;
     const gap = 20;
     const footerH = 140;
-
     let canvasW, canvasH;
     const count = rawPhotos.length;
 
@@ -141,21 +253,21 @@ const Editor = () => {
       canvasW = targetW + padding * 2;
       canvasH = targetH * count + gap * (count - 1) + padding * 2 + footerH;
     }
-
     canvas.width = canvasW;
     canvas.height = canvasH;
 
-    // 1. GAMBAR BACKGROUND (Warna Solid atau Texture)
+    // 1. DRAW BACKGROUND
     if (bgType === "color") {
       ctx.fillStyle = frameColor;
+      ctx.fillRect(0, 0, canvasW, canvasH);
     } else {
-      // Generate pattern on the fly
-      const pattern = createPattern(ctx, selectedPattern);
+      // Menggunakan fungsi baru dengan parameter patternColor
+      const pattern = createPattern(ctx, selectedPattern, patternColor);
       ctx.fillStyle = pattern;
+      ctx.fillRect(0, 0, canvasW, canvasH);
     }
-    ctx.fillRect(0, 0, canvasW, canvasH);
 
-    // 2. Helper Crop Image
+    // 2. Helper Crop & Draw
     const drawCroppedImage = (img, x, y, w, h) => {
       const sourceAspect = img.width / img.height;
       const targetAspect = w / h;
@@ -163,7 +275,6 @@ const Editor = () => {
         sourceY = 0,
         sourceW = img.width,
         sourceH = img.height;
-
       if (sourceAspect > targetAspect) {
         sourceW = img.height * targetAspect;
         sourceX = (img.width - sourceW) / 2;
@@ -174,7 +285,7 @@ const Editor = () => {
       ctx.drawImage(img, sourceX, sourceY, sourceW, sourceH, x, y, w, h);
     };
 
-    // 3. Loop Foto
+    // 3. Loop Photos
     let photosLoaded = 0;
     rawPhotos.forEach((src, index) => {
       const img = new Image();
@@ -190,11 +301,9 @@ const Editor = () => {
           y = padding + index * (targetH + gap);
         }
         drawCroppedImage(img, x, y, targetW, targetH);
-
         photosLoaded++;
-        if (photosLoaded === rawPhotos.length) {
+        if (photosLoaded === rawPhotos.length)
           drawDecorations(ctx, canvasW, canvasH);
-        }
       };
       img.src = src;
     });
@@ -204,35 +313,40 @@ const Editor = () => {
     bgType,
     frameColor,
     selectedPattern,
+    patternColor,
     stickers,
     navigate,
-  ]);
+  ]); // Tambahkan patternColor ke dependency
 
   const drawDecorations = (ctx, w, h) => {
-    // Teks warna putih jika background gelap, hitam jika terang
-    const isDark = bgType === "color" && frameColor === "#000000";
-    ctx.fillStyle = isDark ? "#ffffff" : "#333333";
+    // Deteksi kecerahan background untuk warna teks
+    let isDark = false;
+    if (bgType === "color") {
+      isDark = frameColor === "#000000" || frameColor.startsWith("#3");
+    } else {
+      // Asumsi kasar: jika pattern color gelap, anggap background gelap
+      isDark = patternColor === "#000000" || patternColor.startsWith("#3");
+    }
 
-    // Jika pakai pattern, kasih background putih sedikit di teks footer biar terbaca
+    ctx.fillStyle = isDark ? "#ffffff" : "#333333";
     if (bgType === "pattern") {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-      ctx.fillRect(0, h - 100, w, 100);
+      // Background semi-transparan di footer agar teks terbaca di atas pola
+      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+      ctx.fillRect(0, h - 110, w, 110);
       ctx.fillStyle = "#333333";
     }
 
     ctx.textAlign = "center";
     ctx.font = "bold 50px Courier New";
-    ctx.fillText("WAGO BOOTH", w / 2, h - 80);
-
+    ctx.fillText("WAGO BOOTH", w / 2, h - 70);
     ctx.font = "24px Arial";
     ctx.globalAlpha = 0.7;
     ctx.fillText(
       `${new Date().toLocaleDateString()} | Created with love`,
       w / 2,
-      h - 35
+      h - 30
     );
     ctx.globalAlpha = 1.0;
-
     stickers.forEach((s) => {
       ctx.font = "100px Arial";
       ctx.fillText(s.emoji, s.x, s.y);
@@ -276,11 +390,10 @@ const Editor = () => {
         <div className="p-5 border-b border-gray-100 bg-white">
           <h2 className="text-xl font-bold text-gray-800">Edit Foto</h2>
           <p className="text-sm text-gray-500">
-            Pilih warna atau tekstur favoritmu!
+            Kreasikan background sesukamu!
           </p>
         </div>
 
-        {/* Tab Menu */}
         <div className="flex border-b border-gray-100 bg-gray-50/50">
           <button
             onClick={() => setActiveTab("frame")}
@@ -304,18 +417,18 @@ const Editor = () => {
           </button>
         </div>
 
-        {/* Isi Panel Tools */}
         <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-white">
           {activeTab === "frame" && (
-            <div className="space-y-6">
-              {/* 1. SECTION WARNA SOLID */}
+            <div className="space-y-8 animate-fade-in-up">
+              {/* SECTION 1: WARNA SOLID */}
               <div>
-                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
-                  Warna Solid
+                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  Warna Solid Polos{" "}
+                  <div className="h-px bg-gray-200 flex-1"></div>
                 </h3>
-                <div className="grid grid-cols-5 gap-3">
-                  {/* CUSTOM COLOR PICKER */}
-                  <div className="relative aspect-square rounded-full overflow-hidden shadow-sm border-[3px] border-white ring-1 ring-gray-200 group cursor-pointer bg-gradient-to-br from-pink-400 via-purple-400 to-blue-400">
+                <div className="grid grid-cols-6 gap-2">
+                  {/* Color Picker Solid */}
+                  <div className="relative aspect-square rounded-xl overflow-hidden shadow-sm border-2 border-gray-200 group cursor-pointer bg-gradient-to-tr from-gray-100 to-gray-300 hover:border-pink-400 transition">
                     <input
                       type="color"
                       value={frameColor}
@@ -325,23 +438,22 @@ const Editor = () => {
                       }}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-white group-hover:scale-110 transition">
-                      <Pipette size={20} />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-gray-500 group-hover:text-pink-500 transition">
+                      <Pipette size={18} />
                     </div>
                   </div>
-
-                  {/* PRESET COLORS */}
-                  {colors.map((c) => (
+                  {/* Presets Solid */}
+                  {colors.slice(0, 5).map((c) => (
                     <button
                       key={c}
                       onClick={() => {
                         setFrameColor(c);
                         setBgType("color");
                       }}
-                      className={`aspect-square rounded-full border-[3px] shadow-sm transition hover:scale-110 ${
+                      className={`aspect-square rounded-xl border-2 shadow-sm transition hover:scale-105 ${
                         bgType === "color" && frameColor === c
-                          ? "border-pink-500 ring-2 ring-pink-200 scale-110"
-                          : "border-white ring-1 ring-gray-200"
+                          ? "border-pink-500 ring-2 ring-pink-100"
+                          : "border-gray-200"
                       }`}
                       style={{ backgroundColor: c }}
                     />
@@ -349,12 +461,40 @@ const Editor = () => {
                 </div>
               </div>
 
-              {/* 2. SECTION TEKSTUR (PATTERN) */}
+              {/* SECTION 2: TEKSTUR & POLA (DENGAN COLOR PICKER BARU) */}
               <div>
-                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
-                  Tekstur & Pola
+                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  Tekstur & Pola <div className="h-px bg-gray-200 flex-1"></div>
                 </h3>
-                <div className="grid grid-cols-3 gap-3">
+
+                {/* --- COLOR PICKER KHUSUS POLA --- */}
+                <div className="flex items-center gap-3 mb-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                  <div
+                    className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-sm ring-1 ring-gray-200 cursor-pointer"
+                    style={{ backgroundColor: patternColor }}
+                  >
+                    <input
+                      type="color"
+                      value={patternColor}
+                      onChange={(e) => {
+                        setPatternColor(e.target.value);
+                        if (bgType !== "pattern") setBgType("pattern");
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-700">
+                      Ganti Warna Pola
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Klik lingkaran untuk ubah warna.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Grid Pilihan Pola */}
+                <div className="grid grid-cols-3 gap-2">
                   {patterns.map((pat) => (
                     <button
                       key={pat.id}
@@ -362,21 +502,22 @@ const Editor = () => {
                         setSelectedPattern(pat.id);
                         setBgType("pattern");
                       }}
-                      className={`h-20 rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition relative overflow-hidden ${
+                      className={`h-16 rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition relative overflow-hidden hover:border-pink-300 hover:bg-pink-50/50 ${
                         bgType === "pattern" && selectedPattern === pat.id
-                          ? "border-pink-500 bg-pink-50 ring-2 ring-pink-200"
-                          : "border-gray-100 hover:border-gray-300"
+                          ? "border-pink-500 bg-pink-50 ring-2 ring-pink-100"
+                          : "border-gray-100"
                       }`}
                     >
-                      {/* Preview Mini Pattern */}
+                      {/* Preview Mini Pattern (Dinamis mengikuti patternColor) */}
                       <div
-                        className="absolute inset-0 opacity-20"
+                        className="absolute inset-0 opacity-10"
                         style={{
-                          backgroundImage: `radial-gradient(${pat.color} 2px, transparent 2px)`,
+                          backgroundImage: `radial-gradient(${patternColor} 20%, transparent 20%), radial-gradient(${patternColor} 20%, transparent 20%)`,
+                          backgroundPosition: "0 0, 5px 5px",
                           backgroundSize: "10px 10px",
                         }}
                       ></div>
-                      <span className="relative z-10 font-bold text-gray-600 text-sm">
+                      <span className="relative z-10 font-bold text-gray-600 text-[11px] uppercase tracking-tight">
                         {pat.name}
                       </span>
                     </button>
@@ -387,7 +528,7 @@ const Editor = () => {
           )}
 
           {activeTab === "sticker" && (
-            <div className="space-y-4">
+            <div className="space-y-4 animate-fade-in-up">
               <div className="grid grid-cols-4 gap-3">
                 {stickerOptions.map((emoji) => (
                   <button
