@@ -1,49 +1,319 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, RefreshCcw } from "lucide-react";
+import {
+  ArrowLeft,
+  Download,
+  Grid,
+  Layout,
+  Palette,
+  Smile,
+  RefreshCcw,
+  Check,
+} from "lucide-react";
 import { usePhoto } from "../PhotoContext";
 
 const Editor = () => {
   const navigate = useNavigate();
-  const { currentPhoto, setCurrentPhoto } = usePhoto();
+  const { rawPhotos, setFinalImage, setRawPhotos } = usePhoto();
+  const canvasRef = useRef(null);
 
-  // Jika tidak ada foto (misal user langsung akses URL ini), kembalikan ke booth
+  // State Editor
+  const [layoutType, setLayoutType] = useState("strip"); // 'strip' or 'grid'
+  const [frameColor, setFrameColor] = useState("#ffffff"); // Warna background
+  const [activeTab, setActiveTab] = useState("frame"); // 'layout', 'frame', 'sticker'
+  const [stickers, setStickers] = useState([]); // Array stiker yang ditempel
+
+  // Data Pilihan Warna Frame (Mirip Referensi Image 2008d1)
+  const colors = [
+    "#ffffff",
+    "#000000",
+    "#ffb7b2",
+    "#ffdac1",
+    "#e2f0cb",
+    "#b5ead7",
+    "#c7ceea",
+    "#ff9aa2",
+    "#e0f2f1",
+    "#fff3e0",
+    "#f3e5f5",
+    "#e8eaf6",
+  ];
+
+  // Data Pilihan Stiker (Emoji)
+  const stickerOptions = [
+    "❤️",
+    "⭐",
+    "🌸",
+    "🔥",
+    "✨",
+    "🎀",
+    "🦋",
+    "🐱",
+    "🦄",
+    "😎",
+    "👑",
+    "🌈",
+  ];
+
+  // --- LOGIC MENGGAMBAR CANVAS ---
   useEffect(() => {
-    if (!currentPhoto) navigate("/booth");
-  }, [currentPhoto, navigate]);
+    if (rawPhotos.length === 0) {
+      navigate("/booth"); // Kalo gak ada foto, balik ke kamera
+      return;
+    }
 
-  if (!currentPhoto) return null;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+
+    // Konfigurasi Ukuran
+    const photoW = 640;
+    const photoH = 480;
+    const padding = 40;
+    const gap = 20;
+    const footerH = 100;
+
+    let canvasW, canvasH;
+
+    // 1. Tentukan Ukuran Canvas berdasarkan Layout
+    if (layoutType === "strip") {
+      // Layout Strip Memanjang
+      canvasW = photoW + padding * 2;
+      canvasH = photoH * 4 + gap * 3 + padding * 2 + footerH;
+    } else {
+      // Layout Grid 2x2
+      canvasW = photoW * 2 + padding * 2 + gap;
+      canvasH = photoH * 2 + padding * 2 + gap + footerH;
+    }
+
+    canvas.width = canvasW;
+    canvas.height = canvasH;
+
+    // 2. Gambar Background (Frame Color)
+    ctx.fillStyle = frameColor;
+    ctx.fillRect(0, 0, canvasW, canvasH);
+
+    // 3. Load & Gambar Foto
+    rawPhotos.forEach((src, index) => {
+      const img = new Image();
+      img.src = src;
+
+      let x, y;
+
+      if (layoutType === "strip") {
+        x = padding;
+        y = padding + index * (photoH + gap);
+      } else {
+        // Grid Logic
+        const col = index % 2;
+        const row = Math.floor(index / 2);
+        x = padding + col * (photoW + gap);
+        y = padding + row * (photoH + gap);
+      }
+
+      // Pastikan gambar sudah load (biasanya dataURL instan, tapi better safe)
+      img.onload = () => {
+        ctx.drawImage(img, x, y, photoW, photoH);
+
+        // Jika foto terakhir sudah digambar, baru gambar ornamen lain
+        if (index === rawPhotos.length - 1) {
+          drawDecorations(ctx, canvasW, canvasH);
+        }
+      };
+      // Fallback jika sudah cached
+      if (img.complete) {
+        ctx.drawImage(img, x, y, photoW, photoH);
+        if (index === rawPhotos.length - 1)
+          drawDecorations(ctx, canvasW, canvasH);
+      }
+    });
+  }, [rawPhotos, layoutType, frameColor, stickers, navigate]);
+
+  // Fungsi Gambar Dekorasi (Teks & Stiker)
+  const drawDecorations = (ctx, w, h) => {
+    // Footer Text
+    ctx.fillStyle = frameColor === "#000000" ? "#ffffff" : "#333333";
+    ctx.font = "bold 40px Courier New";
+    ctx.textAlign = "center";
+    ctx.fillText("WAGO BOOTH", w / 2, h - 50);
+    ctx.font = "20px Arial";
+    ctx.fillText(new Date().toLocaleDateString(), w / 2, h - 20);
+
+    // Draw Stickers (Random Position for now, or fixed)
+    stickers.forEach((s) => {
+      ctx.font = "80px Arial";
+      ctx.fillText(s.emoji, s.x, s.y);
+    });
+  };
+
+  const addSticker = (emoji) => {
+    // Tambah stiker di posisi random di area canvas
+    const canvas = canvasRef.current;
+    const x = Math.random() * (canvas.width - 100) + 50;
+    const y = Math.random() * (canvas.height - 100) + 50;
+    setStickers([...stickers, { emoji, x, y }]);
+  };
+
+  const handleFinish = () => {
+    const canvas = canvasRef.current;
+    setFinalImage(canvas.toDataURL("image/png"));
+    navigate("/delivery");
+  };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6 relative">
-      <h2 className="text-white text-2xl font-bold mb-6">Review Foto</h2>
-
-      {/* Area Preview Foto */}
-      <div className="relative max-w-2xl w-full aspect-[4/3] bg-black rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20">
-        <img
-          src={currentPhoto}
-          alt="Result"
-          className="w-full h-full object-contain"
-        />
+    <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row overflow-hidden font-sans">
+      {/* KIRI: PREVIEW AREA (Background bintik2 ala editor) */}
+      <div className="flex-1 bg-gray-200 flex items-center justify-center p-8 overflow-y-auto relative bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px]">
+        <div
+          className="shadow-2xl transition-all duration-500 ease-in-out transform origin-top"
+          style={{ maxHeight: "85vh" }}
+        >
+          <canvas
+            ref={canvasRef}
+            className="max-w-full max-h-full h-auto w-auto block bg-white"
+          />
+        </div>
       </div>
 
-      {/* Tombol Aksi */}
-      <div className="flex gap-6 mt-8 w-full max-w-md justify-center">
-        <button
-          onClick={() => {
-            setCurrentPhoto(null);
-            navigate("/booth");
-          }}
-          className="flex-1 flex items-center justify-center gap-2 py-4 bg-red-500/80 hover:bg-red-600 text-white rounded-xl font-bold backdrop-blur transition"
-        >
-          <RefreshCcw className="w-5 h-5" /> Foto Ulang
-        </button>
-        <button
-          onClick={() => navigate("/delivery")}
-          className="flex-1 flex items-center justify-center gap-2 py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold shadow-lg transition scale-105"
-        >
-          <Check className="w-5 h-5" /> Lanjut
-        </button>
+      {/* KANAN: TOOLS PANEL (Mirip Referensi) */}
+      <div className="w-full md:w-96 bg-white shadow-2xl flex flex-col z-20">
+        {/* Header Panel */}
+        <div className="p-6 border-b border-gray-100">
+          <h2 className="text-xl font-bold text-gray-800">Edit Foto</h2>
+          <p className="text-sm text-gray-500">Sesuaikan layout dan gayamu!</p>
+        </div>
+
+        {/* Tab Menu */}
+        <div className="flex border-b border-gray-100">
+          <button
+            onClick={() => setActiveTab("frame")}
+            className={`flex-1 py-4 flex flex-col items-center gap-1 text-sm font-semibold ${
+              activeTab === "frame"
+                ? "text-pink-500 border-b-2 border-pink-500"
+                : "text-gray-400"
+            }`}
+          >
+            <Palette size={20} /> Warna
+          </button>
+          <button
+            onClick={() => setActiveTab("layout")}
+            className={`flex-1 py-4 flex flex-col items-center gap-1 text-sm font-semibold ${
+              activeTab === "layout"
+                ? "text-pink-500 border-b-2 border-pink-500"
+                : "text-gray-400"
+            }`}
+          >
+            <Layout size={20} /> Layout
+          </button>
+          <button
+            onClick={() => setActiveTab("sticker")}
+            className={`flex-1 py-4 flex flex-col items-center gap-1 text-sm font-semibold ${
+              activeTab === "sticker"
+                ? "text-pink-500 border-b-2 border-pink-500"
+                : "text-gray-400"
+            }`}
+          >
+            <Smile size={20} /> Stiker
+          </button>
+        </div>
+
+        {/* Content Panel */}
+        <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+          {/* TAB: WARNA FRAME */}
+          {activeTab === "frame" && (
+            <div className="grid grid-cols-4 gap-4">
+              {colors.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setFrameColor(c)}
+                  className={`w-12 h-12 rounded-full border-2 shadow-sm transition hover:scale-110 ${
+                    frameColor === c
+                      ? "border-pink-500 ring-2 ring-pink-200"
+                      : "border-gray-200"
+                  }`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* TAB: LAYOUT */}
+          {activeTab === "layout" && (
+            <div className="space-y-4">
+              <button
+                onClick={() => setLayoutType("strip")}
+                className={`w-full p-4 border-2 rounded-xl flex items-center gap-4 transition ${
+                  layoutType === "strip"
+                    ? "border-pink-500 bg-pink-50 text-pink-700"
+                    : "border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                <div className="w-8 h-12 border-2 border-current rounded flex flex-col gap-0.5 p-0.5">
+                  <div className="flex-1 bg-current opacity-30"></div>
+                  <div className="flex-1 bg-current opacity-30"></div>
+                  <div className="flex-1 bg-current opacity-30"></div>
+                </div>
+                <span className="font-bold">Strip (4 Foto)</span>
+              </button>
+
+              <button
+                onClick={() => setLayoutType("grid")}
+                className={`w-full p-4 border-2 rounded-xl flex items-center gap-4 transition ${
+                  layoutType === "grid"
+                    ? "border-pink-500 bg-pink-50 text-pink-700"
+                    : "border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                <div className="w-10 h-10 border-2 border-current rounded grid grid-cols-2 gap-0.5 p-0.5">
+                  <div className="bg-current opacity-30"></div>
+                  <div className="bg-current opacity-30"></div>
+                  <div className="bg-current opacity-30"></div>
+                  <div className="bg-current opacity-30"></div>
+                </div>
+                <span className="font-bold">Grid (2x2)</span>
+              </button>
+            </div>
+          )}
+
+          {/* TAB: STIKER */}
+          {activeTab === "sticker" && (
+            <div className="grid grid-cols-4 gap-4">
+              {stickerOptions.map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={() => addSticker(emoji)}
+                  className="text-3xl hover:scale-125 transition p-2 bg-gray-50 rounded-lg"
+                >
+                  {emoji}
+                </button>
+              ))}
+              <button
+                onClick={() => setStickers([])}
+                className="col-span-4 mt-4 py-2 text-red-500 text-sm font-bold border border-red-200 rounded-lg hover:bg-red-50"
+              >
+                Hapus Semua Stiker
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Action Buttons Bottom */}
+        <div className="p-6 bg-white border-t border-gray-100 flex gap-4">
+          <button
+            onClick={() => {
+              setRawPhotos([]);
+              navigate("/booth");
+            }}
+            className="flex-1 py-3 border-2 border-gray-300 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition"
+          >
+            Ulang
+          </button>
+          <button
+            onClick={handleFinish}
+            className="flex-[2] py-3 bg-[#ff4785] text-white font-bold rounded-xl hover:bg-[#ff2e73] shadow-lg hover:shadow-xl hover:-translate-y-1 transition flex items-center justify-center gap-2"
+          >
+            <Check size={20} /> Selesai
+          </button>
+        </div>
       </div>
     </div>
   );

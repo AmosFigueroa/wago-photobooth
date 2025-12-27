@@ -1,161 +1,193 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { Camera, Layers, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Clock, Grid, ChevronDown } from "lucide-react";
 import { usePhoto } from "../PhotoContext";
 
 const Booth = () => {
   const videoRef = useRef(null);
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { setCurrentPhoto, isPremium, setIsPremium } = usePhoto();
+  const { setRawPhotos, isPremium } = usePhoto();
 
   const [filter, setFilter] = useState("none");
   const [countdown, setCountdown] = useState(0);
-  const [showFilters, setShowFilters] = useState(false);
+  const [timerDelay, setTimerDelay] = useState(3); // Default 3 detik
+  const [isCapturing, setIsCapturing] = useState(false);
 
-  // Cek status pembayaran dari URL
-  useEffect(() => {
-    if (searchParams.get("status") === "premium") {
-      setIsPremium(true);
-    }
-  }, [searchParams, setIsPremium]);
-
+  // Filter ala Referensi
   const filters = [
-    { name: "Normal", value: "none" },
-    { name: "B&W", value: "grayscale(100%)" },
-    { name: "Sepia", value: "sepia(100%)" },
-    { name: "Vintage", value: "contrast(120%) saturate(120%) sepia(30%)" },
-    { name: "Soft", value: "brightness(110%) blur(0.5px)" },
-    ...(isPremium
-      ? [
-          {
-            name: "PREMIUM: Cyberpunk",
-            value: "hue-rotate(180deg) contrast(120%)",
-          },
-        ]
-      : []),
+    { name: "Normal", value: "none", color: "#ff7eb3" },
+    {
+      name: "Lembut",
+      value: "brightness(110%) contrast(90%)",
+      color: "#a8e6cf",
+    },
+    { name: "Pedesaan", value: "sepia(40%) contrast(110%)", color: "#fdffab" },
+    { name: "B&W", value: "grayscale(100%)", color: "#dcdcdc" },
+    { name: "Vintage", value: "sepia(80%) contrast(120%)", color: "#ffd3b6" },
+    {
+      name: "Cyber",
+      value: "hue-rotate(190deg) contrast(120%)",
+      color: "#ffaaa5",
+    },
   ];
 
   useEffect(() => {
     const startCamera = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 1920, height: 1080, facingMode: "user" },
+          video: { width: 1280, height: 720, facingMode: "user" },
           audio: false,
         });
         if (videoRef.current) videoRef.current.srcObject = stream;
       } catch (err) {
-        console.error("Camera Error:", err);
         alert("Gagal akses kamera.");
       }
     };
     startCamera();
-    // Cleanup function untuk mematikan kamera saat pindah halaman
-    return () => {
-      if (videoRef.current && videoRef.current.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
-      }
-    };
   }, []);
 
-  const captureFrame = useCallback(() => {
+  // Fungsi ambil 1 frame
+  const captureSingleFrame = () => {
     const video = videoRef.current;
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
+
+    // Efek Mirror & Filter
     ctx.filter = filter;
     ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1); // Mirror
+    ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.filter = "none";
-    if (!isPremium) {
-      ctx.font = "30px sans-serif";
-      ctx.fillStyle = "rgba(255,255,255,0.5)";
-      ctx.fillText("WAGO TRIAL", 50, canvas.height - 50);
-    }
-    return canvas.toDataURL("image/png");
-  }, [filter, isPremium]);
 
-  const handleCapture = () => {
-    setCountdown(3);
-    let count = 3;
-    const timer = setInterval(() => {
-      count--;
+    return canvas.toDataURL("image/png");
+  };
+
+  // Logic Utama: Ambil 4 Foto Berturut-turut
+  const startPhotoSession = () => {
+    if (isCapturing) return;
+    setIsCapturing(true);
+    const photos = [];
+    let shotsTaken = 0;
+
+    const takeShot = () => {
+      // 1. Mulai Countdown
+      let count = timerDelay;
       setCountdown(count);
-      if (count === 0) {
-        clearInterval(timer);
-        const img = captureFrame();
-        setCurrentPhoto(img); // Simpan ke global state
-        navigate("/editor"); // Pindah ke halaman editor
-      }
-    }, 1000);
+
+      const timer = setInterval(() => {
+        count--;
+        setCountdown(count);
+
+        if (count === 0) {
+          clearInterval(timer);
+          // 2. Cekrek!
+          const img = captureSingleFrame();
+          photos.push(img);
+          shotsTaken++;
+
+          // 3. Cek apakah sudah 4 foto?
+          if (shotsTaken < 4) {
+            // Jeda sebentar sebelum foto berikutnya (1 detik)
+            setTimeout(takeShot, 1000);
+          } else {
+            // Selesai! Simpan ke context dan pindah halaman
+            setRawPhotos(photos);
+            navigate("/editor");
+          }
+        }
+      }, 1000);
+    };
+
+    takeShot(); // Mulai foto pertama
   };
 
   return (
-    <div className="h-screen w-screen bg-black overflow-hidden relative">
-      {/* Tombol Kembali */}
-      <button
-        onClick={() => navigate("/")}
-        className="absolute top-6 left-6 z-20 p-3 bg-black/40 backdrop-blur-md rounded-full text-white"
-      >
-        <ArrowLeft />
-      </button>
+    <div className="h-screen w-screen bg-white flex flex-col font-sans">
+      {/* HEADER TOOLS (Mirip Image 200b83) */}
+      <div className="h-16 flex items-center justify-center gap-4 bg-white shadow-sm z-10 px-4">
+        <button
+          onClick={() => navigate("/")}
+          className="absolute left-4 p-2 rounded-full hover:bg-gray-100"
+        >
+          <ArrowLeft size={24} />
+        </button>
 
-      {/* Countdown */}
-      {countdown > 0 && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40">
-          <span className="text-[10rem] font-bold text-white animate-ping">
-            {countdown}
-          </span>
+        {/* Dropdown Simulasi */}
+        <div className="flex gap-2">
+          <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-full text-sm font-bold text-gray-700">
+            <Grid size={16} /> 4 Foto <ChevronDown size={14} />
+          </button>
+          <button
+            onClick={() => setTimerDelay(timerDelay === 3 ? 5 : 3)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-full text-sm font-bold text-gray-700"
+          >
+            <Clock size={16} /> {timerDelay}s Tertunda
+          </button>
         </div>
-      )}
-
-      {/* Video Fullscreen */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        className="h-full w-full object-cover transform -scale-x-100"
-        style={{ filter: filter }}
-      />
-
-      {/* Controls */}
-      <div className="absolute bottom-0 inset-x-0 p-8 flex justify-center items-center gap-8 bg-gradient-to-t from-black/70 to-transparent">
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="p-4 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition"
-        >
-          <Layers className="w-6 h-6" />
-        </button>
-        <button
-          onClick={handleCapture}
-          className="w-24 h-24 rounded-full bg-white border-4 border-pink-500 shadow-[0_0_30px_rgba(236,72,153,0.6)] hover:scale-105 active:scale-95 transition flex items-center justify-center"
-        >
-          <div className="w-20 h-20 rounded-full bg-pink-500"></div>
-        </button>
-        <div className="w-14"></div> {/* Spacer */}
       </div>
 
-      {/* Filter Panel (Muncul dari samping) */}
-      {showFilters && (
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/60 backdrop-blur-md p-4 rounded-2xl border border-white/10 flex flex-col gap-3 animate-fade-in-right">
+      {/* CAMERA AREA */}
+      <div className="flex-1 relative bg-gray-100 overflow-hidden flex items-center justify-center p-4">
+        <div className="relative w-full max-w-4xl aspect-[4/3] bg-black rounded-3xl overflow-hidden shadow-2xl">
+          {/* Countdown Overlay */}
+          {countdown > 0 && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+              <span className="text-9xl font-black text-white animate-bounce">
+                {countdown}
+              </span>
+            </div>
+          )}
+
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            className="w-full h-full object-cover transform -scale-x-100"
+            style={{ filter: filter }}
+          />
+        </div>
+      </div>
+
+      {/* BOTTOM CONTROLS (Filter & Shutter) */}
+      <div className="h-48 bg-white flex flex-col items-center py-4 gap-4 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-20">
+        {/* Filter Scroll Horizontal */}
+        <div className="flex gap-4 overflow-x-auto w-full max-w-2xl px-6 pb-2 custom-scrollbar justify-center">
           {filters.map((f) => (
             <button
               key={f.name}
               onClick={() => setFilter(f.value)}
-              className={`text-xs py-2 px-4 rounded-lg ${
-                filter === f.value
-                  ? "bg-pink-500 text-white"
-                  : "bg-white/20 text-white"
+              className={`flex flex-col items-center gap-2 min-w-[70px] transition ${
+                filter === f.value ? "scale-110" : "opacity-60"
               }`}
             >
-              {f.name}
+              <div
+                className="w-12 h-12 rounded-full border-2 border-gray-200"
+                style={{ backgroundColor: f.color }}
+              ></div>
+              <span className="text-xs font-semibold text-gray-600">
+                {f.name}
+              </span>
             </button>
           ))}
         </div>
-      )}
+
+        {/* Tombol Shutter Pink Besar */}
+        <button
+          onClick={startPhotoSession}
+          disabled={isCapturing}
+          className="w-16 h-16 md:w-20 md:h-20 bg-[#ff4785] hover:bg-[#ff2e73] text-white rounded-full flex items-center justify-center shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isCapturing ? (
+            <span className="animate-spin text-2xl">⏳</span>
+          ) : (
+            <div className="w-8 h-8 rounded-full border-4 border-white"></div>
+          )}
+        </button>
+        <span className="text-sm font-bold text-[#ff4785]">
+          {isCapturing ? "Mengambil Foto..." : "Mulai Foto"}
+        </span>
+      </div>
     </div>
   );
 };
