@@ -1,41 +1,39 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Mail,
   ArrowRight,
   CheckCircle,
   Download,
   Cloud,
-  Home,
-  Image as ImageIcon,
   Film,
+  Image as ImageIcon,
 } from "lucide-react";
 import { usePhoto } from "../PhotoContext";
-import gifshot from "gifshot"; // Library GIF
+import gifshot from "gifshot";
 
 const Delivery = () => {
   const navigate = useNavigate();
   const { finalImage, rawPhotos, setRawPhotos, setFinalImage } = usePhoto();
 
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState("idle"); // idle, generating, uploading, success
+  const [status, setStatus] = useState("idle");
   const [generatedGif, setGeneratedGif] = useState(null);
 
   useEffect(() => {
     if (!finalImage) navigate("/booth");
-    // Generate GIF otomatis di background saat halaman dibuka
     if (rawPhotos.length > 0) {
       createGif();
     }
   }, [finalImage, rawPhotos, navigate]);
 
+  // --- PERBAIKAN 1: GIF TIDAK GEPENG (RASIO 16:9) ---
   const createGif = () => {
     gifshot.createGIF(
       {
         images: rawPhotos,
-        interval: 0.5, // Kecepatan GIF
-        gifWidth: 400,
-        gifHeight: 300,
+        interval: 0.5,
+        gifWidth: 640, // Lebar standar
+        gifHeight: 360, // Tinggi 16:9 (640 * 9 / 16)
         numFrames: 10,
       },
       function (obj) {
@@ -51,7 +49,6 @@ const Delivery = () => {
     link.href = finalImage;
     link.download = `Wago-Strip-${Date.now()}.png`;
     link.click();
-    alert("Foto Strip berhasil didownload!");
   };
 
   const handleSendToCloud = async (e) => {
@@ -63,17 +60,12 @@ const Delivery = () => {
 
     setStatus("uploading");
 
-    // Persiapkan Paket Data
     const uploads = [];
-
-    // 1. Masukkan Foto Strip
     uploads.push({
       name: "Foto-Strip.png",
       data: finalImage,
-      label: "Foto Strip (Final)",
+      label: "Foto Strip",
     });
-
-    // 2. Masukkan GIF (Jika ada)
     if (generatedGif) {
       uploads.push({
         name: "Animasi.gif",
@@ -81,25 +73,27 @@ const Delivery = () => {
         label: "Animasi GIF",
       });
     }
-
-    // 3. Masukkan Raw Photos
     rawPhotos.forEach((img, idx) => {
       uploads.push({
-        name: `Raw-Foto-${idx + 1}.png`,
+        name: `Raw-${idx + 1}.png`,
         data: img,
-        label: `Foto Mentah #${idx + 1}`,
+        label: `Mentah ${idx + 1}`,
       });
     });
 
-    // KIRIM KE APPS SCRIPT
-    // --- GANTI URL INI DENGAN URL DEPLOY TERBARU KAMU ---
+    // --- GANTI URL INI DENGAN URL APPS SCRIPT BARU (SETELAH DEPLOY ULANG) ---
     const SCRIPT_URL =
       "https://script.google.com/macros/s/AKfycbyg1IZ8lTWCz3y-r-VS4E-s6fz9ug1rtu6id5w8uOd4eBmWtu_-VAEt8ZGTW408cfsu/exec";
 
     try {
       await fetch(SCRIPT_URL, {
         method: "POST",
-        body: JSON.stringify({ userEmail: email, uploads: uploads }),
+        // Kita kirim URL website saat ini agar email bisa generate link galeri yang benar
+        body: JSON.stringify({
+          userEmail: email,
+          uploads: uploads,
+          appUrl: window.location.origin, // Otomatis deteksi domain (localhost/vercel)
+        }),
       });
       setStatus("success");
     } catch (err) {
@@ -118,14 +112,12 @@ const Delivery = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 font-sans">
       <div className="bg-white p-8 rounded-[40px] shadow-2xl w-full max-w-5xl flex flex-col lg:flex-row gap-10">
-        {/* KIRI: PREVIEW HASIL */}
+        {/* PREVIEW AREA */}
         <div className="lg:w-1/2 bg-gray-100 rounded-3xl p-6 flex flex-col gap-6">
           <h3 className="text-xl font-bold text-gray-700 flex items-center gap-2">
             <ImageIcon /> Preview Paket
           </h3>
-
           <div className="flex gap-4 h-64">
-            {/* Preview Strip */}
             <div className="flex-1 bg-white rounded-xl shadow-sm p-2 flex items-center justify-center">
               <img
                 src={finalImage}
@@ -133,14 +125,13 @@ const Delivery = () => {
                 className="max-h-full object-contain shadow-md"
               />
             </div>
-
-            {/* Preview GIF */}
             {generatedGif && (
               <div className="flex-1 bg-white rounded-xl shadow-sm p-2 flex flex-col items-center justify-center relative overflow-hidden">
+                {/* GIF Preview */}
                 <img
                   src={generatedGif}
                   alt="GIF"
-                  className="w-full h-full object-cover rounded-lg opacity-80"
+                  className="w-full h-full object-cover rounded-lg opacity-90"
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="bg-black/50 text-white px-3 py-1 rounded-full text-xs font-bold flex gap-1">
@@ -150,17 +141,11 @@ const Delivery = () => {
               </div>
             )}
           </div>
-
-          <p className="text-xs text-gray-400 text-center">
-            Paket termasuk: 1 Foto Strip + 1 GIF + {rawPhotos.length} Foto
-            Mentah
-          </p>
         </div>
 
-        {/* KANAN: PILIHAN AKSI */}
+        {/* ACTION AREA */}
         <div className="lg:w-1/2 flex flex-col justify-center space-y-8">
           {status === "success" ? (
-            // TAMPILAN SUKSES
             <div className="text-center space-y-6 animate-fade-in-up">
               <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle size={48} />
@@ -170,30 +155,27 @@ const Delivery = () => {
                   Paket Terkirim!
                 </h2>
                 <p className="text-gray-500 mt-2">
-                  Semua file (Strip, GIF, Raw) sudah masuk ke emailmu.
+                  Cek email <b>{email}</b> untuk melihat galerimu.
                 </p>
               </div>
               <button
                 onClick={handleFinish}
                 className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-black transition"
               >
-                Selesai & Kembali ke Home
+                Selesai
               </button>
             </div>
           ) : (
-            // TAMPILAN OPSI
             <>
               <div>
                 <h2 className="text-4xl font-black text-gray-800 mb-2">
-                  Simpan Momenmu
+                  Simpan Paket
                 </h2>
                 <p className="text-gray-500 text-lg">
-                  Pilih cara menyimpan foto:
+                  Download langsung atau kirim ke Cloud.
                 </p>
               </div>
-
               <div className="space-y-4">
-                {/* OPSI 1: DOWNLOAD LANGSUNG */}
                 <button
                   onClick={handleDownloadLocal}
                   className="w-full p-6 bg-white border-2 border-gray-100 rounded-3xl hover:border-blue-200 hover:bg-blue-50 transition flex items-center gap-6 group text-left"
@@ -206,12 +188,11 @@ const Delivery = () => {
                       Download HP
                     </h4>
                     <p className="text-sm text-gray-400">
-                      Simpan Foto Strip saja ke galeri HP.
+                      Simpan Foto Strip ke galeri HP.
                     </p>
                   </div>
                 </button>
 
-                {/* OPSI 2: KIRIM KE CLOUD (EMAIL) */}
                 <div
                   className={`p-6 bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-100 rounded-3xl transition ${
                     status === "uploading" ? "opacity-80" : ""
@@ -226,12 +207,10 @@ const Delivery = () => {
                         Wago Cloud
                       </h4>
                       <p className="text-sm text-gray-400">
-                        Kirim Paket Lengkap (GIF + Raw) ke Email.
+                        Kirim Paket Lengkap ke Email.
                       </p>
                     </div>
                   </div>
-
-                  {/* Form Email di dalam Card */}
                   <form onSubmit={handleSendToCloud} className="flex gap-2">
                     <input
                       type="email"
@@ -247,7 +226,7 @@ const Delivery = () => {
                       disabled={status === "uploading"}
                       className="bg-pink-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-pink-700 transition disabled:bg-gray-400"
                     >
-                      {status === "uploading" ? "⏳..." : <ArrowRight />}
+                      {status === "uploading" ? "⏳" : <ArrowRight />}
                     </button>
                   </form>
                 </div>
