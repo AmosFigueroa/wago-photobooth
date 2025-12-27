@@ -16,7 +16,6 @@ const Delivery = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Ambil data context dengan nilai default aman
   const {
     finalImage,
     rawPhotos = [],
@@ -29,29 +28,23 @@ const Delivery = () => {
   const [generatedGif, setGeneratedGif] = useState(null);
   const [isProcessingGif, setIsProcessingGif] = useState(false);
 
-  // Default frame color putih jika tidak ada data
   const frameColor = location.state?.frameColorForGif || "#ffffff";
 
-  // --- URL BACKEND GOOGLE APPS SCRIPT (DIPECAH AGAR TIDAK ERROR SYNTAX) ---
+  // --- URL BACKEND GOOGLE APPS SCRIPT (DIPECAH SUPAYA AMAN) ---
   const SCRIPT_ID =
     "AKfycbyg1IZ8lTWCz3y-r-VS4E-s6fz9ug1rtu6id5w8uOd4eBmWtu_-VAEt8ZGTW408cfsu";
   const SCRIPT_URL = `https://script.google.com/macros/s/${SCRIPT_ID}/exec`;
 
-  // Proteksi: Jika tidak ada foto, kembalikan ke booth
   useEffect(() => {
-    if (!finalImage) {
-      navigate("/booth");
-    }
+    if (!finalImage) navigate("/booth");
   }, [finalImage, navigate]);
 
-  // Trigger pembuatan GIF otomatis
   useEffect(() => {
     if (rawPhotos && rawPhotos.length > 0 && !generatedGif) {
       createFramedGif();
     }
   }, [rawPhotos]);
 
-  // Fungsi membuat frame GIF
   const processFramesWithBorder = async (photos, color) => {
     const processedImages = [];
     const padding = 20;
@@ -65,11 +58,9 @@ const Delivery = () => {
     const ctx = canvas.getContext("2d");
 
     for (const src of photos) {
-      // 1. Gambar Background (Warna Frame)
       ctx.fillStyle = color;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // 2. Gambar Foto
       const img = new Image();
       img.crossOrigin = "Anonymous";
       img.src = src;
@@ -80,7 +71,6 @@ const Delivery = () => {
 
       ctx.drawImage(img, padding, padding, targetW, targetH);
 
-      // 3. Teks Footer
       const isDark = color === "#000000" || color.startsWith("#3");
       ctx.fillStyle = isDark ? "#ffffff" : "#333333";
       ctx.font = "bold 16px Courier New";
@@ -161,19 +151,18 @@ const Delivery = () => {
     try {
       await fetch(SCRIPT_URL, {
         method: "POST",
-        // Gunakan mode no-cors jika perlu, tapi coba standar dulu
+        // --- DATA PENTING YANG DIKIRIM KE BACKEND ---
         body: JSON.stringify({
           action: "upload_user",
           userEmail: email,
           uploads: uploads,
-          appUrl: window.location.origin,
+          appUrl: window.location.origin, // Ini URL website kamu saat ini (localhost atau vercel)
         }),
       });
-      // Anggap sukses karena Google Script kadang tidak return JSON proper di mode tertentu
       setStatus("success");
     } catch (err) {
       console.error(err);
-      alert("Gagal koneksi. Coba lagi.");
+      alert("Gagal koneksi. Cek internet.");
       setStatus("idle");
     }
   };
@@ -184,7 +173,6 @@ const Delivery = () => {
     navigate("/");
   };
 
-  // Tampilan Loading jika data belum siap
   if (!finalImage)
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
