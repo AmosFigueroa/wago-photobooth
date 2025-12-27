@@ -8,7 +8,7 @@ const Editor = () => {
   const { rawPhotos, setFinalImage } = usePhoto();
   const canvasRef = useRef(null);
 
-  // URL Backend Google Apps Script (PASTIKAN SUDAH DEPLOY BARU & AKSES ANYONE)
+  // --- PASTE URL WEB APP GOOGLE APPS SCRIPT DI SINI ---
   const SCRIPT_URL =
     "https://script.google.com/macros/s/AKfycbyg1IZ8lTWCz3y-r-VS4E-s6fz9ug1rtu6id5w8uOd4eBmWtu_-VAEt8ZGTW408cfsu/exec";
 
@@ -23,7 +23,6 @@ const Editor = () => {
   const [customAssets, setCustomAssets] = useState({ bgs: [], stickers: [] });
   const [stickers, setStickers] = useState([]);
 
-  // Data Warna & Pola
   const colors = [
     "#ffffff",
     "#000000",
@@ -47,34 +46,52 @@ const Editor = () => {
     { id: "stars", name: "Bintang" },
   ];
 
-  // 1. Proteksi Halaman Blank
-  useEffect(() => {
-    if (!rawPhotos || rawPhotos.length === 0) {
-      console.warn("No photos found, redirecting...");
-      navigate("/booth");
+  // 1. Helper: Ubah Link Drive agar bisa dibaca Canvas (Anti-Broken Image)
+  const getSafeUrl = (url) => {
+    if (url.includes("drive.google.com/uc?export=view&id=")) {
+      // Ubah ke lh3.googleusercontent.com agar tidak kena blokir CORS
+      const id = url.split("id=")[1];
+      return `https://lh3.googleusercontent.com/d/${id}`;
     }
-  }, [rawPhotos, navigate]);
+    return url;
+  };
 
-  // 2. Load Aset dari Google Sheet
-  useEffect(() => {
-    const fetchAssets = async () => {
-      try {
-        const res = await fetch(`${SCRIPT_URL}?get=assets`);
-        const data = await res.json();
-        if (data.status === "success") {
-          setCustomAssets({
-            bgs: data.assets.filter((a) => a.type === "bg"),
-            stickers: data.assets.filter((a) => a.type === "sticker"),
-          });
-        }
-      } catch (e) {
-        console.error("Gagal muat aset:", e);
-      }
-    };
-    fetchAssets();
-  }, [SCRIPT_URL]);
+  // 2. Helper: Anti-Gepeng (Object Fit: Cover)
+  const drawImageProp = (ctx, img, x, y, w, h) => {
+    const offsetX = 0.5,
+      offsetY = 0.5;
+    let iw = img.width,
+      ih = img.height,
+      r = Math.min(w / iw, h / ih),
+      nw = iw * r,
+      nh = ih * r,
+      cx,
+      cy,
+      cw,
+      ch,
+      ar = 1;
 
-  // 3. Generator Pola Dinamis (Fitur yang Hilang Dikembalikan)
+    // Gunakan Math.max untuk 'Cover' (Penuh), Math.min untuk 'Contain' (Utuh tapi ada sisa)
+    // Di sini kita pakai logika Cover agar frame penuh
+    if (nw < w) ar = w / nw;
+    if (Math.abs(ar - 1) < 1e-14 && nh < h) ar = h / nh;
+    nw *= ar;
+    nh *= ar;
+
+    cw = iw / (nw / w);
+    ch = ih / (nh / h);
+    cx = (iw - cw) * offsetX;
+    cy = (ih - ch) * offsetY;
+
+    if (cx < 0) cx = 0;
+    if (cy < 0) cy = 0;
+    if (cw > iw) cw = iw;
+    if (ch > ih) ch = ih;
+
+    ctx.drawImage(img, cx, cy, cw, ch, x, y, w, h);
+  };
+
+  // 3. Generator Pola
   const createPattern = (ctx, type, color) => {
     const tCanvas = document.createElement("canvas");
     const tCtx = tCanvas.getContext("2d");
@@ -83,7 +100,7 @@ const Editor = () => {
     tCanvas.height = size;
 
     tCtx.fillStyle = "#ffffff";
-    tCtx.fillRect(0, 0, size, size); // Base Putih
+    tCtx.fillRect(0, 0, size, size);
     tCtx.fillStyle = color;
     tCtx.strokeStyle = color;
 
@@ -146,40 +163,31 @@ const Editor = () => {
     return ctx.createPattern(tCanvas, "repeat");
   };
 
-  // 4. Fungsi Anti-Gepeng (Object Fit Cover)
-  const drawImageProp = (ctx, img, x, y, w, h) => {
-    const offsetX = 0.5,
-      offsetY = 0.5;
-    let iw = img.width,
-      ih = img.height,
-      r = Math.min(w / iw, h / ih),
-      nw = iw * r,
-      nh = ih * r,
-      cx,
-      cy,
-      cw,
-      ch,
-      ar = 1;
+  // 4. Load Aset
+  useEffect(() => {
+    const fetchAssets = async () => {
+      try {
+        const res = await fetch(`${SCRIPT_URL}?get=assets`);
+        const data = await res.json();
+        if (data.status === "success") {
+          setCustomAssets({
+            bgs: data.assets.filter((a) => a.type === "bg"),
+            stickers: data.assets.filter((a) => a.type === "sticker"),
+          });
+        }
+      } catch (e) {
+        console.error("Gagal muat aset:", e);
+      }
+    };
+    fetchAssets();
+  }, []);
 
-    if (nw < w) ar = w / nw;
-    if (Math.abs(ar - 1) < 1e-14 && nh < h) ar = h / nh;
-    nw *= ar;
-    nh *= ar;
+  // 5. Proteksi
+  useEffect(() => {
+    if (!rawPhotos || rawPhotos.length === 0) navigate("/booth");
+  }, [rawPhotos, navigate]);
 
-    cw = iw / (nw / w);
-    ch = ih / (nh / h);
-    cx = (iw - cw) * offsetX;
-    cy = (ih - ch) * offsetY;
-
-    if (cx < 0) cx = 0;
-    if (cy < 0) cy = 0;
-    if (cw > iw) cw = iw;
-    if (ch > ih) ch = ih;
-
-    ctx.drawImage(img, cx, cy, cw, ch, x, y, w, h);
-  };
-
-  // 5. Render Canvas Utama
+  // 6. RENDER CANVAS UTAMA
   useEffect(() => {
     if (!rawPhotos || rawPhotos.length === 0) return;
 
@@ -215,24 +223,27 @@ const Editor = () => {
         try {
           const bgImg = new Image();
           bgImg.crossOrigin = "anonymous";
-          bgImg.src = selectedBgUrl;
+          // Pakai fungsi getSafeUrl di sini
+          bgImg.src = getSafeUrl(selectedBgUrl);
+
           await new Promise((resolve, reject) => {
             bgImg.onload = resolve;
             bgImg.onerror = reject;
           });
           drawImageProp(ctx, bgImg, 0, 0, canvasW, canvasH);
         } catch (err) {
-          console.error("Gagal load bg", err);
+          console.error("Gagal load bg, fallback ke putih");
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, canvasW, canvasH);
         }
       }
 
-      // B. FOTO (Anti-Gepeng)
+      // B. FOTO USER (Anti-Gepeng)
       for (let i = 0; i < rawPhotos.length; i++) {
         const img = new Image();
         img.src = rawPhotos[i];
         await new Promise((r) => (img.onload = r));
+
         const y = padding + i * (targetH + gap);
         drawImageProp(ctx, img, padding, y, targetW, targetH);
       }
@@ -257,16 +268,13 @@ const Editor = () => {
       for (const s of stickers) {
         const sImg = new Image();
         sImg.crossOrigin = "anonymous";
-        sImg.src = s.url;
+        sImg.src = getSafeUrl(s.url);
         try {
-          await new Promise((resolve, reject) => {
-            sImg.onload = resolve;
-            sImg.onerror = reject;
+          await new Promise((r) => {
+            sImg.onload = r;
           });
           ctx.drawImage(sImg, s.x, s.y, 150, 150);
-        } catch (e) {
-          console.error("Gagal stiker", e);
-        }
+        } catch (e) {}
       }
     };
 
@@ -289,8 +297,7 @@ const Editor = () => {
 
   const handleFinish = () => {
     if (canvasRef.current) {
-      const dataUrl = canvasRef.current.toDataURL("image/png", 1.0);
-      setFinalImage(dataUrl);
+      setFinalImage(canvasRef.current.toDataURL("image/png", 1.0));
       const colorForGif = bgType === "color" ? frameColor : "#ffffff";
       navigate("/delivery", { state: { frameColorForGif: colorForGif } });
     }
@@ -303,7 +310,7 @@ const Editor = () => {
 
   return (
     <div className="h-screen w-screen bg-gray-100 flex flex-col md:flex-row overflow-hidden font-sans">
-      {/* KIRI */}
+      {/* KIRI: Preview */}
       <div className="flex-1 flex items-center justify-center p-4 bg-gray-200 overflow-auto">
         <canvas
           ref={canvasRef}
@@ -311,12 +318,12 @@ const Editor = () => {
         />
       </div>
 
-      {/* KANAN */}
+      {/* KANAN: Tools */}
       <div className="w-full md:w-[400px] bg-white shadow-2xl flex flex-col border-l z-20">
         <div className="flex border-b">
           <button
             onClick={() => setActiveTab("background")}
-            className={`flex-1 py-4 font-bold ${
+            className={`flex-1 py-4 font-bold text-sm uppercase ${
               activeTab === "background"
                 ? "text-pink-600 border-b-2"
                 : "text-gray-400"
@@ -326,7 +333,7 @@ const Editor = () => {
           </button>
           <button
             onClick={() => setActiveTab("stiker")}
-            className={`flex-1 py-4 font-bold ${
+            className={`flex-1 py-4 font-bold text-sm uppercase ${
               activeTab === "stiker"
                 ? "text-pink-600 border-b-2"
                 : "text-gray-400"
@@ -350,11 +357,12 @@ const Editor = () => {
                       key={c}
                       onClick={() => {
                         setFrameColor(c);
-                        setBgType("color");
+                        setBgType("color"); // Wajib Set Type ke Color
+                        setSelectedBgUrl(""); // Reset BG Image
                       }}
                       className={`aspect-square rounded-full border-2 ${
                         bgType === "color" && frameColor === c
-                          ? "border-pink-500 scale-110"
+                          ? "border-pink-500 scale-110 shadow-md"
                           : "border-gray-200"
                       }`}
                       style={{ backgroundColor: c }}
@@ -367,6 +375,7 @@ const Editor = () => {
                       onChange={(e) => {
                         setFrameColor(e.target.value);
                         setBgType("color");
+                        setSelectedBgUrl("");
                       }}
                     />
                     <Pipette size={16} className="text-gray-500" />
@@ -374,7 +383,7 @@ const Editor = () => {
                 </div>
               </div>
 
-              {/* 2. CUSTOM BACKGROUND (DARI DRIVE) */}
+              {/* 2. CUSTOM BACKGROUND */}
               {customAssets.bgs.length > 0 && (
                 <div>
                   <h3 className="text-xs font-bold text-gray-400 uppercase mb-3">
@@ -388,14 +397,15 @@ const Editor = () => {
                           setSelectedBgUrl(bg.url);
                           setBgType("image");
                         }}
-                        className={`relative aspect-video rounded-xl overflow-hidden border-2 ${
+                        className={`relative aspect-video rounded-xl overflow-hidden border-2 transition ${
                           bgType === "image" && selectedBgUrl === bg.url
                             ? "border-pink-500 ring-2"
-                            : "border-gray-100"
+                            : "border-gray-100 hover:border-gray-300"
                         }`}
                       >
+                        {/* Gunakan getSafeUrl juga di preview agar tidak broken */}
                         <img
-                          src={bg.url}
+                          src={getSafeUrl(bg.url)}
                           crossOrigin="anonymous"
                           alt={bg.name}
                           className="w-full h-full object-cover"
@@ -406,13 +416,11 @@ const Editor = () => {
                 </div>
               )}
 
-              {/* 3. POLA STANDAR (KEMBALI ADA) */}
+              {/* 3. POLA STANDAR */}
               <div>
                 <h3 className="text-xs font-bold text-gray-400 uppercase mb-3">
                   Pola & Tekstur
                 </h3>
-
-                {/* Color Picker Pola */}
                 <div className="flex items-center gap-3 mb-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
                   <div
                     className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-sm ring-1 ring-gray-200 cursor-pointer"
@@ -423,7 +431,7 @@ const Editor = () => {
                       value={patternColor}
                       onChange={(e) => {
                         setPatternColor(e.target.value);
-                        if (bgType !== "pattern") setBgType("pattern");
+                        setBgType("pattern");
                       }}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
@@ -434,7 +442,6 @@ const Editor = () => {
                     </p>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-3 gap-2">
                   {patterns.map((pat) => (
                     <button
@@ -479,7 +486,7 @@ const Editor = () => {
                     className="aspect-square border rounded-xl p-2 hover:bg-gray-50"
                   >
                     <img
-                      src={stk.url}
+                      src={getSafeUrl(stk.url)}
                       crossOrigin="anonymous"
                       alt="stk"
                       className="w-full h-full object-contain"
