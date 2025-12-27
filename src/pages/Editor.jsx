@@ -15,7 +15,7 @@ const Editor = () => {
   const [bgType, setBgType] = useState("color"); // 'color' atau 'pattern'
   const [frameColor, setFrameColor] = useState("#ffffff"); // Warna Solid Background
 
-  // STATE BARU: Warna khusus untuk Pattern/Tekstur
+  // Warna khusus untuk Pattern/Tekstur
   const [patternColor, setPatternColor] = useState("#ff4785"); // Default pink
   const [selectedPattern, setSelectedPattern] = useState("dots");
 
@@ -50,12 +50,11 @@ const Editor = () => {
     "🌈",
   ];
 
-  // --- DATA POLA BARU (LEBIH BANYAK VARIASI) ---
-  // Kita hapus property 'color' hardcoded, karena sekarang warnanya dinamis.
+  // --- DATA POLA (VARIASI LENGKAP) ---
   const patterns = [
     // Klasik
     { id: "dots", name: "Polka" },
-    { id: "stripes", name: "Garis Lurus" },
+    { id: "stripes", name: "Garis" },
     { id: "grid", name: "Kotak" },
     { id: "checkers", name: "Catur" },
     // Bentuk Geometris
@@ -74,7 +73,7 @@ const Editor = () => {
     { id: "bricks", name: "Bata" },
   ];
 
-  // --- FUNGSI GENERATOR PATTERN (DIPERBARUI DENGAN WARNA DINAMIS) ---
+  // --- FUNGSI GENERATOR PATTERN DINAMIS ---
   const createPattern = (ctx, type, color) => {
     const tCanvas = document.createElement("canvas");
     const tCtx = tCanvas.getContext("2d");
@@ -83,7 +82,7 @@ const Editor = () => {
     tCanvas.width = size;
     tCanvas.height = size;
 
-    // Background dasar tile (Putih transparan agar warna solid di belakangnya tetap terlihat sedikit jika mau, atau putih solid)
+    // Background dasar tile (Putih)
     tCtx.fillStyle = "#ffffff";
     tCtx.fillRect(0, 0, size, size);
 
@@ -238,14 +237,17 @@ const Editor = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
+    // Konfigurasi Ukuran & Padding
     const targetW = 640;
     const targetH = 480;
     const padding = 40;
     const gap = 20;
     const footerH = 140;
+
     let canvasW, canvasH;
     const count = rawPhotos.length;
 
+    // Hitung Ukuran Canvas
     if (layoutType.includes("grid")) {
       canvasW = targetW * 2 + padding * 2 + gap;
       canvasH = targetH * 2 + padding * 2 + gap + footerH;
@@ -261,13 +263,12 @@ const Editor = () => {
       ctx.fillStyle = frameColor;
       ctx.fillRect(0, 0, canvasW, canvasH);
     } else {
-      // Menggunakan fungsi baru dengan parameter patternColor
       const pattern = createPattern(ctx, selectedPattern, patternColor);
       ctx.fillStyle = pattern;
       ctx.fillRect(0, 0, canvasW, canvasH);
     }
 
-    // 2. Helper Crop & Draw
+    // 2. Helper Crop & Draw (Anti-Stretch)
     const drawCroppedImage = (img, x, y, w, h) => {
       const sourceAspect = img.width / img.height;
       const targetAspect = w / h;
@@ -285,7 +286,7 @@ const Editor = () => {
       ctx.drawImage(img, sourceX, sourceY, sourceW, sourceH, x, y, w, h);
     };
 
-    // 3. Loop Photos
+    // 3. Loop Draw Photos
     let photosLoaded = 0;
     rawPhotos.forEach((src, index) => {
       const img = new Image();
@@ -316,21 +317,21 @@ const Editor = () => {
     patternColor,
     stickers,
     navigate,
-  ]); // Tambahkan patternColor ke dependency
+  ]);
 
+  // --- DEKORASI (TEXT & STICKERS) ---
   const drawDecorations = (ctx, w, h) => {
-    // Deteksi kecerahan background untuk warna teks
     let isDark = false;
     if (bgType === "color") {
       isDark = frameColor === "#000000" || frameColor.startsWith("#3");
     } else {
-      // Asumsi kasar: jika pattern color gelap, anggap background gelap
       isDark = patternColor === "#000000" || patternColor.startsWith("#3");
     }
 
     ctx.fillStyle = isDark ? "#ffffff" : "#333333";
+
+    // Background putih transparan di footer jika pakai pattern
     if (bgType === "pattern") {
-      // Background semi-transparan di footer agar teks terbaca di atas pola
       ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
       ctx.fillRect(0, h - 110, w, 110);
       ctx.fillStyle = "#333333";
@@ -347,6 +348,7 @@ const Editor = () => {
       h - 30
     );
     ctx.globalAlpha = 1.0;
+
     stickers.forEach((s) => {
       ctx.font = "100px Arial";
       ctx.fillText(s.emoji, s.x, s.y);
@@ -360,10 +362,14 @@ const Editor = () => {
     setStickers([...stickers, { emoji, x, y }]);
   };
 
+  // --- FINISH HANDLER (Kirim Warna ke Delivery untuk GIF) ---
   const handleFinish = () => {
     if (canvasRef.current) {
       setFinalImage(canvasRef.current.toDataURL("image/png", 1.0));
-      navigate("/delivery");
+
+      // Kirim warna frame saat ini agar GIF juga punya frame sama
+      const colorForGif = bgType === "color" ? frameColor : "#ffffff";
+      navigate("/delivery", { state: { frameColorForGif: colorForGif } });
     }
   };
 
@@ -461,13 +467,13 @@ const Editor = () => {
                 </div>
               </div>
 
-              {/* SECTION 2: TEKSTUR & POLA (DENGAN COLOR PICKER BARU) */}
+              {/* SECTION 2: TEKSTUR & POLA */}
               <div>
                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   Tekstur & Pola <div className="h-px bg-gray-200 flex-1"></div>
                 </h3>
 
-                {/* --- COLOR PICKER KHUSUS POLA --- */}
+                {/* Color Picker Pola */}
                 <div className="flex items-center gap-3 mb-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
                   <div
                     className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-sm ring-1 ring-gray-200 cursor-pointer"
@@ -493,7 +499,7 @@ const Editor = () => {
                   </div>
                 </div>
 
-                {/* Grid Pilihan Pola */}
+                {/* Grid Pola */}
                 <div className="grid grid-cols-3 gap-2">
                   {patterns.map((pat) => (
                     <button
@@ -508,7 +514,6 @@ const Editor = () => {
                           : "border-gray-100"
                       }`}
                     >
-                      {/* Preview Mini Pattern (Dinamis mengikuti patternColor) */}
                       <div
                         className="absolute inset-0 opacity-10"
                         style={{

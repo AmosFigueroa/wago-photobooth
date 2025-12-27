@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom"; // Tambah useLocation
 import {
   ArrowRight,
   CheckCircle,
@@ -13,33 +13,87 @@ import gifshot from "gifshot";
 
 const Delivery = () => {
   const navigate = useNavigate();
+  const location = useLocation(); // Untuk mengambil data warna yang dikirim dari Editor
   const { finalImage, rawPhotos, setRawPhotos, setFinalImage } = usePhoto();
 
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("idle");
   const [generatedGif, setGeneratedGif] = useState(null);
+  const [isProcessingGif, setIsProcessingGif] = useState(false); // State loading untuk GIF
+
+  // Ambil warna frame dari halaman sebelumnya, default putih jika tidak ada
+  const frameColor = location.state?.frameColorForGif || "#ffffff";
 
   useEffect(() => {
     if (!finalImage) navigate("/booth");
-    if (rawPhotos.length > 0) {
-      createGif();
+    if (rawPhotos.length > 0 && !generatedGif) {
+      createFramedGif();
     }
-  }, [finalImage, rawPhotos, navigate]);
+  }, [finalImage, rawPhotos, navigate, generatedGif]);
 
-  // --- PERBAIKAN 1: GIF TIDAK GEPENG (RASIO 16:9) ---
-  const createGif = () => {
+  // --- FUNGSI BARU: MEMBUAT FRAME UNTUK SETIAP FOTO ---
+  const processFramesWithBorder = async (photos, color) => {
+    const processedImages = [];
+    const padding = 25; // Tebal bingkai
+    const footerH = 50; // Ruang untuk teks bawah
+    const targetW = 640; // Lebar foto
+    const targetH = 360; // Tinggi foto (16:9)
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetW + padding * 2;
+    canvas.height = targetH + padding * 2 + footerH;
+    const ctx = canvas.getContext("2d");
+
+    for (const src of photos) {
+      // 1. Gambar Background Solid (Bingkai)
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 2. Load dan Gambar Foto di tengah
+      const img = new Image();
+      img.src = src;
+      await new Promise((resolve) => {
+        img.onload = resolve;
+      }); // Tunggu gambar load
+
+      // Gambar foto dengan padding
+      ctx.drawImage(img, padding, padding, targetW, targetH);
+
+      // 3. Tambah Teks Footer (Opsional, biar keren)
+      // Tentukan warna teks (hitam/putih) berdasarkan kecerahan background
+      const isDark = color === "#000000" || color.startsWith("#3");
+      ctx.fillStyle = isDark ? "#ffffff" : "#333333";
+      ctx.font = "bold 24px Courier New";
+      ctx.textAlign = "center";
+      ctx.fillText("WAGO BOOTH GIF", canvas.width / 2, canvas.height - 18);
+
+      // Simpan hasil canvas sebagai gambar JPEG (lebih ringan untuk GIF)
+      processedImages.push(canvas.toDataURL("image/jpeg", 0.9));
+    }
+    return processedImages;
+  };
+
+  // --- UPDATE FUNGSI CREATE GIF ---
+  const createFramedGif = async () => {
+    setIsProcessingGif(true);
+
+    // 1. Proses dulu fotonya agar ada bingkainya
+    const framedPhotos = await processFramesWithBorder(rawPhotos, frameColor);
+
+    // 2. Baru buat GIF pakai foto yang sudah berbingkai
     gifshot.createGIF(
       {
-        images: rawPhotos,
+        images: framedPhotos,
         interval: 0.5,
-        gifWidth: 640, // Lebar standar
-        gifHeight: 360, // Tinggi 16:9 (640 * 9 / 16)
+        gifWidth: 690, // Lebar canvas total (640 + 25 + 25)
+        gifHeight: 460, // Tinggi canvas total
         numFrames: 10,
       },
       function (obj) {
         if (!obj.error) {
           setGeneratedGif(obj.image);
         }
+        setIsProcessingGif(false);
       }
     );
   };
@@ -66,13 +120,16 @@ const Delivery = () => {
       data: finalImage,
       label: "Foto Strip",
     });
+
     if (generatedGif) {
       uploads.push({
-        name: "Animasi.gif",
+        name: "Animasi-Befram.gif",
         data: generatedGif,
         label: "Animasi GIF",
       });
     }
+
+    // (Opsional) Kirim raw photos juga jika mau
     rawPhotos.forEach((img, idx) => {
       uploads.push({
         name: `Raw-${idx + 1}.png`,
@@ -81,24 +138,23 @@ const Delivery = () => {
       });
     });
 
-    // --- GANTI URL INI DENGAN URL APPS SCRIPT BARU (SETELAH DEPLOY ULANG) ---
+    // GUNAKAN URL BACKEND APPS SCRIPT KAMU YANG TERAKHIR
     const SCRIPT_URL =
       "https://script.google.com/macros/s/AKfycbyg1IZ8lTWCz3y-r-VS4E-s6fz9ug1rtu6id5w8uOd4eBmWtu_-VAEt8ZGTW408cfsu/exec";
 
     try {
       await fetch(SCRIPT_URL, {
         method: "POST",
-        // Kita kirim URL website saat ini agar email bisa generate link galeri yang benar
         body: JSON.stringify({
           userEmail: email,
           uploads: uploads,
-          appUrl: window.location.origin, // Otomatis deteksi domain (localhost/vercel)
+          appUrl: window.location.origin,
         }),
       });
       setStatus("success");
     } catch (err) {
       console.error(err);
-      alert("Gagal koneksi ke server.");
+      alert("Gagal koneksi ke server. Pastikan internet lancar.");
       setStatus("idle");
     }
   };
@@ -118,6 +174,7 @@ const Delivery = () => {
             <ImageIcon /> Preview Paket
           </h3>
           <div className="flex gap-4 h-64">
+            {/* Preview Strip */}
             <div className="flex-1 bg-white rounded-xl shadow-sm p-2 flex items-center justify-center">
               <img
                 src={finalImage}
@@ -125,21 +182,29 @@ const Delivery = () => {
                 className="max-h-full object-contain shadow-md"
               />
             </div>
-            {generatedGif && (
-              <div className="flex-1 bg-white rounded-xl shadow-sm p-2 flex flex-col items-center justify-center relative overflow-hidden">
-                {/* GIF Preview */}
-                <img
-                  src={generatedGif}
-                  alt="GIF"
-                  className="w-full h-full object-cover rounded-lg opacity-90"
-                />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="bg-black/50 text-white px-3 py-1 rounded-full text-xs font-bold flex gap-1">
-                    <Film size={14} /> GIF
-                  </span>
+
+            {/* Preview GIF */}
+            <div className="flex-1 bg-white rounded-xl shadow-sm p-2 flex flex-col items-center justify-center relative overflow-hidden">
+              {isProcessingGif ? (
+                <div className="flex flex-col items-center text-gray-400 text-sm">
+                  <span className="text-2xl animate-spin mb-2">⚙️</span>
+                  Membuat Frame GIF...
                 </div>
-              </div>
-            )}
+              ) : generatedGif ? (
+                <>
+                  <img
+                    src={generatedGif}
+                    alt="GIF Framed"
+                    className="w-full h-full object-contain rounded-lg shadow-sm"
+                  />
+                  <div className="absolute top-3 right-3">
+                    <span className="bg-black/60 text-white px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1">
+                      <Film size={12} /> GIF
+                    </span>
+                  </div>
+                </>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -195,7 +260,9 @@ const Delivery = () => {
 
                 <div
                   className={`p-6 bg-gradient-to-br from-pink-50 to-purple-50 border-2 border-pink-100 rounded-3xl transition ${
-                    status === "uploading" ? "opacity-80" : ""
+                    status === "uploading" || isProcessingGif
+                      ? "opacity-80 cursor-not-allowed"
+                      : ""
                   }`}
                 >
                   <div className="flex items-center gap-6 mb-4">
@@ -218,15 +285,21 @@ const Delivery = () => {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      disabled={status === "uploading"}
-                      className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-pink-500"
+                      disabled={status === "uploading" || isProcessingGif}
+                      className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-pink-500 disabled:bg-gray-100"
                     />
                     <button
                       type="submit"
-                      disabled={status === "uploading"}
-                      className="bg-pink-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-pink-700 transition disabled:bg-gray-400"
+                      disabled={status === "uploading" || isProcessingGif}
+                      className="bg-pink-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-pink-700 transition disabled:bg-gray-400 flex items-center justify-center min-w-[60px]"
                     >
-                      {status === "uploading" ? "⏳" : <ArrowRight />}
+                      {status === "uploading" ? (
+                        "⏳"
+                      ) : isProcessingGif ? (
+                        "⚙️"
+                      ) : (
+                        <ArrowRight />
+                      )}
                     </button>
                   </form>
                 </div>
