@@ -1,29 +1,21 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowLeft,
-  Download,
-  Grid,
-  Layout,
-  Palette,
-  Smile,
-  RefreshCcw,
-  Check,
-} from "lucide-react";
+import { Palette, Smile, Check, Layout as LayoutIcon } from "lucide-react";
 import { usePhoto } from "../PhotoContext";
 
 const Editor = () => {
   const navigate = useNavigate();
-  const { rawPhotos, setFinalImage, setRawPhotos } = usePhoto();
+  const { rawPhotos, setFinalImage, setRawPhotos, sessionConfig } = usePhoto();
   const canvasRef = useRef(null);
 
-  // State Editor
-  const [layoutType, setLayoutType] = useState("strip"); // 'strip' or 'grid'
-  const [frameColor, setFrameColor] = useState("#ffffff"); // Warna background
-  const [activeTab, setActiveTab] = useState("frame"); // 'layout', 'frame', 'sticker'
-  const [stickers, setStickers] = useState([]); // Array stiker yang ditempel
+  // Ambil config dari context, atau default jika error
+  const initialLayout = sessionConfig?.layout || "strip-4";
 
-  // Data Pilihan Warna Frame (Mirip Referensi Image 2008d1)
+  const [layoutType, setLayoutType] = useState(initialLayout);
+  const [frameColor, setFrameColor] = useState("#ffffff");
+  const [activeTab, setActiveTab] = useState("frame");
+  const [stickers, setStickers] = useState([]);
+
   const colors = [
     "#ffffff",
     "#000000",
@@ -33,13 +25,7 @@ const Editor = () => {
     "#b5ead7",
     "#c7ceea",
     "#ff9aa2",
-    "#e0f2f1",
-    "#fff3e0",
-    "#f3e5f5",
-    "#e8eaf6",
   ];
-
-  // Data Pilihan Stiker (Emoji)
   const stickerOptions = [
     "❤️",
     "⭐",
@@ -51,94 +37,80 @@ const Editor = () => {
     "🐱",
     "🦄",
     "😎",
-    "👑",
-    "🌈",
   ];
 
-  // --- LOGIC MENGGAMBAR CANVAS ---
   useEffect(() => {
     if (rawPhotos.length === 0) {
-      navigate("/booth"); // Kalo gak ada foto, balik ke kamera
+      navigate("/booth");
       return;
     }
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
-    // Konfigurasi Ukuran
+    // Config Ukuran
     const photoW = 640;
     const photoH = 480;
     const padding = 40;
     const gap = 20;
-    const footerH = 100;
+    const footerH = 120;
 
     let canvasW, canvasH;
+    const count = rawPhotos.length; // Jumlah foto aktual yang ada
 
-    // 1. Tentukan Ukuran Canvas berdasarkan Layout
-    if (layoutType === "strip") {
-      // Layout Strip Memanjang
-      canvasW = photoW + padding * 2;
-      canvasH = photoH * 4 + gap * 3 + padding * 2 + footerH;
-    } else {
-      // Layout Grid 2x2
+    // LOGIKA LAYOUT DINAMIS
+    if (layoutType.includes("grid")) {
+      // --- MODE GRID (2x2) ---
       canvasW = photoW * 2 + padding * 2 + gap;
       canvasH = photoH * 2 + padding * 2 + gap + footerH;
+    } else {
+      // --- MODE STRIP (Vertikal) ---
+      canvasW = photoW + padding * 2;
+      canvasH = photoH * count + gap * (count - 1) + padding * 2 + footerH;
     }
 
     canvas.width = canvasW;
     canvas.height = canvasH;
 
-    // 2. Gambar Background (Frame Color)
+    // Background
     ctx.fillStyle = frameColor;
     ctx.fillRect(0, 0, canvasW, canvasH);
 
-    // 3. Load & Gambar Foto
+    // Gambar Foto
     rawPhotos.forEach((src, index) => {
       const img = new Image();
       img.src = src;
 
       let x, y;
-
-      if (layoutType === "strip") {
-        x = padding;
-        y = padding + index * (photoH + gap);
-      } else {
-        // Grid Logic
+      if (layoutType.includes("grid")) {
         const col = index % 2;
         const row = Math.floor(index / 2);
         x = padding + col * (photoW + gap);
         y = padding + row * (photoH + gap);
+      } else {
+        x = padding;
+        y = padding + index * (photoH + gap);
       }
 
-      // Pastikan gambar sudah load (biasanya dataURL instan, tapi better safe)
-      img.onload = () => {
-        ctx.drawImage(img, x, y, photoW, photoH);
-
-        // Jika foto terakhir sudah digambar, baru gambar ornamen lain
-        if (index === rawPhotos.length - 1) {
-          drawDecorations(ctx, canvasW, canvasH);
-        }
-      };
-      // Fallback jika sudah cached
-      if (img.complete) {
+      const draw = () => {
         ctx.drawImage(img, x, y, photoW, photoH);
         if (index === rawPhotos.length - 1)
           drawDecorations(ctx, canvasW, canvasH);
-      }
+      };
+
+      if (img.complete) draw();
+      else img.onload = draw;
     });
   }, [rawPhotos, layoutType, frameColor, stickers, navigate]);
 
-  // Fungsi Gambar Dekorasi (Teks & Stiker)
   const drawDecorations = (ctx, w, h) => {
-    // Footer Text
     ctx.fillStyle = frameColor === "#000000" ? "#ffffff" : "#333333";
     ctx.font = "bold 40px Courier New";
     ctx.textAlign = "center";
-    ctx.fillText("WAGO BOOTH", w / 2, h - 50);
+    ctx.fillText("WAGO BOOTH", w / 2, h - 60);
     ctx.font = "20px Arial";
-    ctx.fillText(new Date().toLocaleDateString(), w / 2, h - 20);
+    ctx.fillText(new Date().toLocaleDateString(), w / 2, h - 25);
 
-    // Draw Stickers (Random Position for now, or fixed)
     stickers.forEach((s) => {
       ctx.font = "80px Arial";
       ctx.fillText(s.emoji, s.x, s.y);
@@ -146,7 +118,6 @@ const Editor = () => {
   };
 
   const addSticker = (emoji) => {
-    // Tambah stiker di posisi random di area canvas
     const canvas = canvasRef.current;
     const x = Math.random() * (canvas.width - 100) + 50;
     const y = Math.random() * (canvas.height - 100) + 50;
@@ -154,35 +125,29 @@ const Editor = () => {
   };
 
   const handleFinish = () => {
-    const canvas = canvasRef.current;
-    setFinalImage(canvas.toDataURL("image/png"));
+    setFinalImage(canvasRef.current.toDataURL("image/png"));
     navigate("/delivery");
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row overflow-hidden font-sans">
-      {/* KIRI: PREVIEW AREA (Background bintik2 ala editor) */}
+    <div className="h-screen bg-gray-100 flex overflow-hidden font-sans">
+      {/* 1. KIRI: HASIL FOTO DI SAMPING (Scrollable) */}
       <div className="flex-1 bg-gray-200 flex items-center justify-center p-8 overflow-y-auto relative bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px]">
-        <div
-          className="shadow-2xl transition-all duration-500 ease-in-out transform origin-top"
-          style={{ maxHeight: "85vh" }}
-        >
+        <div className="shadow-2xl transition-all duration-500 ease-in-out transform origin-top my-auto">
           <canvas
             ref={canvasRef}
-            className="max-w-full max-h-full h-auto w-auto block bg-white"
+            className="max-w-full max-h-[90vh] h-auto w-auto block bg-white"
           />
         </div>
       </div>
 
-      {/* KANAN: TOOLS PANEL (Mirip Referensi) */}
-      <div className="w-full md:w-96 bg-white shadow-2xl flex flex-col z-20">
-        {/* Header Panel */}
+      {/* 2. KANAN: TOOLS PANEL */}
+      <div className="w-96 bg-white shadow-2xl flex flex-col z-20 border-l border-gray-200">
         <div className="p-6 border-b border-gray-100">
           <h2 className="text-xl font-bold text-gray-800">Edit Foto</h2>
-          <p className="text-sm text-gray-500">Sesuaikan layout dan gayamu!</p>
+          <p className="text-sm text-gray-500">Sesuaikan hasil fotomu.</p>
         </div>
 
-        {/* Tab Menu */}
         <div className="flex border-b border-gray-100">
           <button
             onClick={() => setActiveTab("frame")}
@@ -193,16 +158,6 @@ const Editor = () => {
             }`}
           >
             <Palette size={20} /> Warna
-          </button>
-          <button
-            onClick={() => setActiveTab("layout")}
-            className={`flex-1 py-4 flex flex-col items-center gap-1 text-sm font-semibold ${
-              activeTab === "layout"
-                ? "text-pink-500 border-b-2 border-pink-500"
-                : "text-gray-400"
-            }`}
-          >
-            <Layout size={20} /> Layout
           </button>
           <button
             onClick={() => setActiveTab("sticker")}
@@ -216,9 +171,7 @@ const Editor = () => {
           </button>
         </div>
 
-        {/* Content Panel */}
         <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
-          {/* TAB: WARNA FRAME */}
           {activeTab === "frame" && (
             <div className="grid grid-cols-4 gap-4">
               {colors.map((c) => (
@@ -235,46 +188,6 @@ const Editor = () => {
               ))}
             </div>
           )}
-
-          {/* TAB: LAYOUT */}
-          {activeTab === "layout" && (
-            <div className="space-y-4">
-              <button
-                onClick={() => setLayoutType("strip")}
-                className={`w-full p-4 border-2 rounded-xl flex items-center gap-4 transition ${
-                  layoutType === "strip"
-                    ? "border-pink-500 bg-pink-50 text-pink-700"
-                    : "border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                <div className="w-8 h-12 border-2 border-current rounded flex flex-col gap-0.5 p-0.5">
-                  <div className="flex-1 bg-current opacity-30"></div>
-                  <div className="flex-1 bg-current opacity-30"></div>
-                  <div className="flex-1 bg-current opacity-30"></div>
-                </div>
-                <span className="font-bold">Strip (4 Foto)</span>
-              </button>
-
-              <button
-                onClick={() => setLayoutType("grid")}
-                className={`w-full p-4 border-2 rounded-xl flex items-center gap-4 transition ${
-                  layoutType === "grid"
-                    ? "border-pink-500 bg-pink-50 text-pink-700"
-                    : "border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                <div className="w-10 h-10 border-2 border-current rounded grid grid-cols-2 gap-0.5 p-0.5">
-                  <div className="bg-current opacity-30"></div>
-                  <div className="bg-current opacity-30"></div>
-                  <div className="bg-current opacity-30"></div>
-                  <div className="bg-current opacity-30"></div>
-                </div>
-                <span className="font-bold">Grid (2x2)</span>
-              </button>
-            </div>
-          )}
-
-          {/* TAB: STIKER */}
           {activeTab === "sticker" && (
             <div className="grid grid-cols-4 gap-4">
               {stickerOptions.map((emoji) => (
@@ -290,13 +203,12 @@ const Editor = () => {
                 onClick={() => setStickers([])}
                 className="col-span-4 mt-4 py-2 text-red-500 text-sm font-bold border border-red-200 rounded-lg hover:bg-red-50"
               >
-                Hapus Semua Stiker
+                Hapus Stiker
               </button>
             </div>
           )}
         </div>
 
-        {/* Action Buttons Bottom */}
         <div className="p-6 bg-white border-t border-gray-100 flex gap-4">
           <button
             onClick={() => {
@@ -309,7 +221,7 @@ const Editor = () => {
           </button>
           <button
             onClick={handleFinish}
-            className="flex-[2] py-3 bg-[#ff4785] text-white font-bold rounded-xl hover:bg-[#ff2e73] shadow-lg hover:shadow-xl hover:-translate-y-1 transition flex items-center justify-center gap-2"
+            className="flex-[2] py-3 bg-[#ff4785] text-white font-bold rounded-xl hover:bg-[#ff2e73] shadow-lg transition flex items-center justify-center gap-2"
           >
             <Check size={20} /> Selesai
           </button>
