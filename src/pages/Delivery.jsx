@@ -30,7 +30,6 @@ const Delivery = () => {
 
   const frameColor = location.state?.frameColorForGif || "#ffffff";
 
-  // --- URL BACKEND GOOGLE APPS SCRIPT (DIPECAH SUPAYA AMAN) ---
   const SCRIPT_ID =
     "AKfycbyg1IZ8lTWCz3y-r-VS4E-s6fz9ug1rtu6id5w8uOd4eBmWtu_-VAEt8ZGTW408cfsu";
   const SCRIPT_URL = `https://script.google.com/macros/s/${SCRIPT_ID}/exec`;
@@ -49,13 +48,19 @@ const Delivery = () => {
     const processedImages = [];
     const padding = 20;
     const footerH = 40;
-    const targetW = 320;
-    const targetH = 180;
+
+    // Perbesar ukuran canvas untuk kualitas lebih tajam (HD)
+    const targetW = 640;
+    const targetH = 360;
 
     const canvas = document.createElement("canvas");
     canvas.width = targetW + padding * 2;
     canvas.height = targetH + padding * 2 + footerH;
     const ctx = canvas.getContext("2d");
+
+    // Aktifkan image smoothing untuk hasil lebih halus
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
 
     for (const src of photos) {
       ctx.fillStyle = color;
@@ -73,11 +78,12 @@ const Delivery = () => {
 
       const isDark = color === "#000000" || color.startsWith("#3");
       ctx.fillStyle = isDark ? "#ffffff" : "#333333";
-      ctx.font = "bold 16px Courier New";
+      ctx.font = "bold 24px Courier New"; // Font diperbesar
       ctx.textAlign = "center";
       ctx.fillText("WAGO BOOTH", canvas.width / 2, canvas.height - 15);
 
-      processedImages.push(canvas.toDataURL("image/jpeg", 0.8));
+      // KUALITAS MAKSIMAL (1.0)
+      processedImages.push(canvas.toDataURL("image/jpeg", 1.0));
     }
     return processedImages;
   };
@@ -90,10 +96,12 @@ const Delivery = () => {
       gifshot.createGIF(
         {
           images: framedPhotos,
-          interval: 0.5,
-          gifWidth: 360,
-          gifHeight: 260,
+          interval: 0.5, // Kecepatan per frame (detik)
+          gifWidth: 680, // Lebar output (HD)
+          gifHeight: 440, // Tinggi output (HD)
           numFrames: 10,
+          sampleInterval: 10, // KUALITAS WARNA (Makin kecil makin bagus, default 10)
+          numWorkers: 4, // Gunakan lebih banyak tenaga CPU agar cepat
         },
         function (obj) {
           if (!obj.error) {
@@ -151,17 +159,15 @@ const Delivery = () => {
     try {
       await fetch(SCRIPT_URL, {
         method: "POST",
-        // --- DATA PENTING YANG DIKIRIM KE BACKEND ---
         body: JSON.stringify({
           action: "upload_user",
           userEmail: email,
           uploads: uploads,
-          appUrl: window.location.origin, // Ini URL website kamu saat ini (localhost atau vercel)
+          appUrl: window.location.origin,
         }),
       });
       setStatus("success");
     } catch (err) {
-      console.error(err);
       alert("Gagal koneksi. Cek internet.");
       setStatus("idle");
     }
@@ -199,7 +205,7 @@ const Delivery = () => {
             <div className="flex-1 bg-white rounded-xl shadow-sm p-2 flex flex-col items-center justify-center relative overflow-hidden">
               {isProcessingGif ? (
                 <div className="flex flex-col items-center text-gray-400 text-sm animate-pulse">
-                  <RefreshCcw className="animate-spin mb-2" /> Bikin GIF...
+                  <RefreshCcw className="animate-spin mb-2" /> Proses HD GIF...
                 </div>
               ) : generatedGif ? (
                 <>
