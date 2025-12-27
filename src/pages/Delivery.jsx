@@ -16,7 +16,7 @@ const Delivery = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Ambil data context dengan nilai default
+  // Ambil data context dengan nilai default aman
   const {
     finalImage,
     rawPhotos = [],
@@ -29,25 +29,29 @@ const Delivery = () => {
   const [generatedGif, setGeneratedGif] = useState(null);
   const [isProcessingGif, setIsProcessingGif] = useState(false);
 
+  // Default frame color putih jika tidak ada data
   const frameColor = location.state?.frameColorForGif || "#ffffff";
 
-  // --- PERBAIKAN URL (DIPECAH AGAR AMAN) ---
+  // --- URL BACKEND GOOGLE APPS SCRIPT (DIPECAH AGAR TIDAK ERROR SYNTAX) ---
   const SCRIPT_ID =
     "AKfycbyg1IZ8lTWCz3y-r-VS4E-s6fz9ug1rtu6id5w8uOd4eBmWtu_-VAEt8ZGTW408cfsu";
   const SCRIPT_URL = `https://script.google.com/macros/s/${SCRIPT_ID}/exec`;
 
-  // Proteksi Halaman
+  // Proteksi: Jika tidak ada foto, kembalikan ke booth
   useEffect(() => {
-    if (!finalImage) navigate("/booth");
+    if (!finalImage) {
+      navigate("/booth");
+    }
   }, [finalImage, navigate]);
 
-  // Auto-Generate GIF
+  // Trigger pembuatan GIF otomatis
   useEffect(() => {
     if (rawPhotos && rawPhotos.length > 0 && !generatedGif) {
       createFramedGif();
     }
   }, [rawPhotos]);
 
+  // Fungsi membuat frame GIF
   const processFramesWithBorder = async (photos, color) => {
     const processedImages = [];
     const padding = 20;
@@ -61,9 +65,11 @@ const Delivery = () => {
     const ctx = canvas.getContext("2d");
 
     for (const src of photos) {
+      // 1. Gambar Background (Warna Frame)
       ctx.fillStyle = color;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      // 2. Gambar Foto
       const img = new Image();
       img.crossOrigin = "Anonymous";
       img.src = src;
@@ -74,6 +80,7 @@ const Delivery = () => {
 
       ctx.drawImage(img, padding, padding, targetW, targetH);
 
+      // 3. Teks Footer
       const isDark = color === "#000000" || color.startsWith("#3");
       ctx.fillStyle = isDark ? "#ffffff" : "#333333";
       ctx.font = "bold 16px Courier New";
@@ -154,6 +161,7 @@ const Delivery = () => {
     try {
       await fetch(SCRIPT_URL, {
         method: "POST",
+        // Gunakan mode no-cors jika perlu, tapi coba standar dulu
         body: JSON.stringify({
           action: "upload_user",
           userEmail: email,
@@ -161,9 +169,11 @@ const Delivery = () => {
           appUrl: window.location.origin,
         }),
       });
+      // Anggap sukses karena Google Script kadang tidak return JSON proper di mode tertentu
       setStatus("success");
     } catch (err) {
-      alert("Gagal koneksi. Cek internet.");
+      console.error(err);
+      alert("Gagal koneksi. Coba lagi.");
       setStatus("idle");
     }
   };
