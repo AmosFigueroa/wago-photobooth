@@ -30,6 +30,7 @@ const Delivery = () => {
 
   const frameColor = location.state?.frameColorForGif || "#ffffff";
 
+  // --- PERBAIKAN URL (DIPECAH AGAR TIDAK ERROR SYNTAX) ---
   const SCRIPT_ID =
     "AKfycbyg1IZ8lTWCz3y-r-VS4E-s6fz9ug1rtu6id5w8uOd4eBmWtu_-VAEt8ZGTW408cfsu";
   const SCRIPT_URL = `https://script.google.com/macros/s/${SCRIPT_ID}/exec`;
@@ -46,19 +47,18 @@ const Delivery = () => {
 
   const processFramesWithBorder = async (photos, color) => {
     const processedImages = [];
-    const padding = 20;
-    const footerH = 40;
-
-    // Perbesar ukuran canvas untuk kualitas lebih tajam (HD)
+    // UKURAN HD 16:9
     const targetW = 640;
     const targetH = 360;
+    const padding = 20;
+    const footerH = 40;
 
     const canvas = document.createElement("canvas");
     canvas.width = targetW + padding * 2;
     canvas.height = targetH + padding * 2 + footerH;
     const ctx = canvas.getContext("2d");
 
-    // Aktifkan image smoothing untuk hasil lebih halus
+    // AKTIFKAN KUALITAS TINGGI
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
@@ -78,11 +78,11 @@ const Delivery = () => {
 
       const isDark = color === "#000000" || color.startsWith("#3");
       ctx.fillStyle = isDark ? "#ffffff" : "#333333";
-      ctx.font = "bold 24px Courier New"; // Font diperbesar
+      ctx.font = "bold 24px Courier New";
       ctx.textAlign = "center";
       ctx.fillText("WAGO BOOTH", canvas.width / 2, canvas.height - 15);
 
-      // KUALITAS MAKSIMAL (1.0)
+      // KUALITAS JPEG MAX (1.0)
       processedImages.push(canvas.toDataURL("image/jpeg", 1.0));
     }
     return processedImages;
@@ -96,12 +96,12 @@ const Delivery = () => {
       gifshot.createGIF(
         {
           images: framedPhotos,
-          interval: 0.5, // Kecepatan per frame (detik)
-          gifWidth: 680, // Lebar output (HD)
-          gifHeight: 440, // Tinggi output (HD)
+          interval: 0.5,
+          gifWidth: 680, // Ukuran Output HD
+          gifHeight: 440,
           numFrames: 10,
-          sampleInterval: 10, // KUALITAS WARNA (Makin kecil makin bagus, default 10)
-          numWorkers: 4, // Gunakan lebih banyak tenaga CPU agar cepat
+          sampleInterval: 10, // Kualitas Warna Terbaik
+          numWorkers: 4, // Proses Cepat
         },
         function (obj) {
           if (!obj.error) {
