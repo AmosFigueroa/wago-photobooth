@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom"; // Tambah useLocation
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowRight,
   CheckCircle,
@@ -13,16 +13,20 @@ import gifshot from "gifshot";
 
 const Delivery = () => {
   const navigate = useNavigate();
-  const location = useLocation(); // Untuk mengambil data warna yang dikirim dari Editor
+  const location = useLocation();
   const { finalImage, rawPhotos, setRawPhotos, setFinalImage } = usePhoto();
 
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("idle");
   const [generatedGif, setGeneratedGif] = useState(null);
-  const [isProcessingGif, setIsProcessingGif] = useState(false); // State loading untuk GIF
+  const [isProcessingGif, setIsProcessingGif] = useState(false);
 
-  // Ambil warna frame dari halaman sebelumnya, default putih jika tidak ada
+  // Ambil warna frame dari halaman sebelumnya
   const frameColor = location.state?.frameColorForGif || "#ffffff";
+
+  // URL Backend Google Apps Script (Pastikan ini URL Deploy terbaru kamu)
+  const SCRIPT_URL =
+    "https://script.google.com/macros/s/AKfycbyg1IZ8lTWCz3y-r-VS4E-s6fz9ug1rtu6id5w8uOd4eBmWtu_-VAEt8ZGTW408cfsu/exec";
 
   useEffect(() => {
     if (!finalImage) navigate("/booth");
@@ -31,13 +35,13 @@ const Delivery = () => {
     }
   }, [finalImage, rawPhotos, navigate, generatedGif]);
 
-  // --- FUNGSI BARU: MEMBUAT FRAME UNTUK SETIAP FOTO ---
+  // --- FUNGSI MEMBUAT FRAME GIF ---
   const processFramesWithBorder = async (photos, color) => {
     const processedImages = [];
-    const padding = 25; // Tebal bingkai
-    const footerH = 50; // Ruang untuk teks bawah
-    const targetW = 640; // Lebar foto
-    const targetH = 360; // Tinggi foto (16:9)
+    const padding = 25;
+    const footerH = 50;
+    const targetW = 640;
+    const targetH = 360;
 
     const canvas = document.createElement("canvas");
     canvas.width = targetW + padding * 2;
@@ -45,48 +49,38 @@ const Delivery = () => {
     const ctx = canvas.getContext("2d");
 
     for (const src of photos) {
-      // 1. Gambar Background Solid (Bingkai)
       ctx.fillStyle = color;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // 2. Load dan Gambar Foto di tengah
       const img = new Image();
       img.src = src;
       await new Promise((resolve) => {
         img.onload = resolve;
-      }); // Tunggu gambar load
+      });
 
-      // Gambar foto dengan padding
       ctx.drawImage(img, padding, padding, targetW, targetH);
 
-      // 3. Tambah Teks Footer (Opsional, biar keren)
-      // Tentukan warna teks (hitam/putih) berdasarkan kecerahan background
       const isDark = color === "#000000" || color.startsWith("#3");
       ctx.fillStyle = isDark ? "#ffffff" : "#333333";
       ctx.font = "bold 24px Courier New";
       ctx.textAlign = "center";
       ctx.fillText("WAGO BOOTH GIF", canvas.width / 2, canvas.height - 18);
 
-      // Simpan hasil canvas sebagai gambar JPEG (lebih ringan untuk GIF)
       processedImages.push(canvas.toDataURL("image/jpeg", 0.9));
     }
     return processedImages;
   };
 
-  // --- UPDATE FUNGSI CREATE GIF ---
   const createFramedGif = async () => {
     setIsProcessingGif(true);
-
-    // 1. Proses dulu fotonya agar ada bingkainya
     const framedPhotos = await processFramesWithBorder(rawPhotos, frameColor);
 
-    // 2. Baru buat GIF pakai foto yang sudah berbingkai
     gifshot.createGIF(
       {
         images: framedPhotos,
         interval: 0.5,
-        gifWidth: 690, // Lebar canvas total (640 + 25 + 25)
-        gifHeight: 460, // Tinggi canvas total
+        gifWidth: 690,
+        gifHeight: 460,
         numFrames: 10,
       },
       function (obj) {
@@ -129,7 +123,6 @@ const Delivery = () => {
       });
     }
 
-    // (Opsional) Kirim raw photos juga jika mau
     rawPhotos.forEach((img, idx) => {
       uploads.push({
         name: `Raw-${idx + 1}.png`,
@@ -138,14 +131,12 @@ const Delivery = () => {
       });
     });
 
-    // GUNAKAN URL BACKEND APPS SCRIPT KAMU YANG TERAKHIR
-    const SCRIPT_URL =
-      "https://script.google.com/macros/s/AKfycbyg1IZ8lTWCz3y-r-VS4E-s6fz9ug1rtu6id5w8uOd4eBmWtu_-VAEt8ZGTW408cfsu/exec";
-
     try {
       await fetch(SCRIPT_URL, {
         method: "POST",
+        // --- UPDATE PENTING: Menambahkan action 'upload_user' untuk Admin Stats ---
         body: JSON.stringify({
+          action: "upload_user",
           userEmail: email,
           uploads: uploads,
           appUrl: window.location.origin,
@@ -174,7 +165,6 @@ const Delivery = () => {
             <ImageIcon /> Preview Paket
           </h3>
           <div className="flex gap-4 h-64">
-            {/* Preview Strip */}
             <div className="flex-1 bg-white rounded-xl shadow-sm p-2 flex items-center justify-center">
               <img
                 src={finalImage}
@@ -183,7 +173,6 @@ const Delivery = () => {
               />
             </div>
 
-            {/* Preview GIF */}
             <div className="flex-1 bg-white rounded-xl shadow-sm p-2 flex flex-col items-center justify-center relative overflow-hidden">
               {isProcessingGif ? (
                 <div className="flex flex-col items-center text-gray-400 text-sm">

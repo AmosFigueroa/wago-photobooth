@@ -2,29 +2,29 @@ import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { PhotoProvider } from "./PhotoContext";
 
-// Import Halaman-halaman
+// Import Pages
 import Home from "./pages/Home";
-import PaymentPage from "./pages/PaymentPage";
 import Booth from "./pages/Booth";
 import Editor from "./pages/Editor";
 import Delivery from "./pages/Delivery";
 import Gallery from "./pages/Gallery";
+import Admin from "./pages/Admin"; // Pastikan file Admin.jsx sudah dibuat
 
 const App = () => {
   return (
-    // 1. Bungkus aplikasi dengan Provider agar state bisa diakses di mana saja
     <PhotoProvider>
-      {/* 2. Bungkus dengan Router untuk mengaktifkan navigasi */}
       <Router>
-        <div className="font-sans">
+        <div className="font-sans antialiased text-gray-900">
           <Routes>
-            {/* 3. Definisikan rute/alamat halaman */}
+            {/* User Routes */}
             <Route path="/" element={<Home />} />
-            <Route path="/payment" element={<PaymentPage />} />
             <Route path="/booth" element={<Booth />} />
             <Route path="/editor" element={<Editor />} />
             <Route path="/delivery" element={<Delivery />} />
             <Route path="/gallery" element={<Gallery />} />
+
+            {/* Admin Route (Rahasia) */}
+            <Route path="/admin" element={<Admin />} />
           </Routes>
         </div>
       </Router>
