@@ -12,17 +12,17 @@ import { usePhoto } from "../PhotoContext";
 
 const Editor = () => {
   const navigate = useNavigate();
-  const { rawPhotos, setFinalImage, setRawPhotos, sessionConfig } = usePhoto();
+  const { rawPhotos, setFinalImage, sessionConfig } = usePhoto();
   const canvasRef = useRef(null);
 
-  // URL BACKEND YANG SUDAH DIPERBAIKI (Pastikan satu baris lurus)
+  // --- FIX 1: URL DIPERBAIKI (Tanda kutip penutup ditambahkan) ---
   const SCRIPT_URL =
     "https://script.google.com/macros/s/AKfycbyg1IZ8lTWCz3y-r-VS4E-s6fz9ug1rtu6id5w8uOd4eBmWtu_-VAEt8ZGTW408cfsu/exec";
 
   const initialLayout = sessionConfig?.layout || "strip-4";
 
   const [layoutType, setLayoutType] = useState(initialLayout);
-  const [bgType, setBgType] = useState("color");
+  const [bgType, setBgType] = useState("color"); // 'color', 'pattern', 'image'
   const [frameColor, setFrameColor] = useState("#ffffff");
   const [patternColor, setPatternColor] = useState("#ff4785");
   const [selectedPattern, setSelectedPattern] = useState("dots");
@@ -44,13 +44,13 @@ const Editor = () => {
           setCustomAssets({ bgs, stickers: stks });
         }
       } catch (e) {
-        console.error("Gagal muat aset khusus");
+        console.error("Gagal muat aset khusus", e);
       }
     };
     fetchAssets();
   }, []);
 
-  // Preset Manual (Default)
+  // Preset Manual
   const colors = [
     "#ffffff",
     "#000000",
@@ -129,7 +129,7 @@ const Editor = () => {
     canvas.width = canvasW;
     canvas.height = canvasH;
 
-    // Fungsi helper gambar foto
+    // Helper Draw Photos
     const drawPhotos = () => {
       let loaded = 0;
       rawPhotos.forEach((src, i) => {
@@ -146,7 +146,6 @@ const Editor = () => {
             y = padding + i * (targetH + gap);
           }
 
-          // Crop Logic
           const sAspect = img.width / img.height;
           const tAspect = targetW / targetH;
           let sX = 0,
@@ -162,7 +161,6 @@ const Editor = () => {
           }
 
           ctx.drawImage(img, sX, sY, sW, sH, x, y, targetW, targetH);
-
           loaded++;
           if (loaded === count) drawDecorations(ctx, canvasW, canvasH);
         };
@@ -170,14 +168,14 @@ const Editor = () => {
       });
     };
 
-    // Draw Background
+    // Draw Background Layer
     if (bgType === "color") {
       ctx.fillStyle = frameColor;
       ctx.fillRect(0, 0, canvasW, canvasH);
       drawPhotos();
     } else if (bgType === "image") {
       const bgImg = new Image();
-      bgImg.crossOrigin = "Anonymous"; // PENTING: CORS
+      bgImg.crossOrigin = "Anonymous"; // PENTING: CORS Fix
       bgImg.src = selectedPattern;
       bgImg.onload = () => {
         ctx.drawImage(bgImg, 0, 0, canvasW, canvasH);
@@ -206,7 +204,6 @@ const Editor = () => {
   ]);
 
   const drawDecorations = (ctx, w, h) => {
-    // Watermark / Footer
     ctx.fillStyle =
       bgType === "pattern" ? "rgba(255,255,255,0.8)" : "transparent";
     if (bgType === "pattern") ctx.fillRect(0, h - 100, w, 100);
@@ -218,7 +215,6 @@ const Editor = () => {
     ctx.font = "20px Arial";
     ctx.fillText(new Date().toLocaleDateString(), w / 2, h - 25);
 
-    // Draw Stickers
     stickers.forEach((s) => {
       if (s.type === "emoji") {
         ctx.font = "100px Arial";
@@ -291,41 +287,48 @@ const Editor = () => {
         <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
           {activeTab === "frame" && (
             <div className="space-y-6">
-              {/* 1. Warna Solid */}
+              {/* 1. Warna Solid (FIXED COLOR PICKER) */}
               <div>
                 <h3 className="text-xs font-bold text-gray-400 uppercase mb-2">
                   Warna Solid
                 </h3>
                 <div className="grid grid-cols-6 gap-2">
-                  <div className="relative aspect-square rounded-full border-2 overflow-hidden bg-gradient-to-tr from-pink-200 to-blue-200 cursor-pointer">
+                  {/* Custom Color Picker Button */}
+                  <div className="relative aspect-square rounded-full border-2 overflow-hidden bg-gradient-to-tr from-pink-200 to-blue-200 cursor-pointer group hover:border-pink-500 transition">
                     <input
                       type="color"
                       value={frameColor}
                       onChange={(e) => {
                         setFrameColor(e.target.value);
-                        setBgType("color");
+                        setBgType("color"); // Paksa ubah mode ke Color saat dipick
                       }}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                     />
-                    <div className="absolute inset-0 flex items-center justify-center text-gray-600">
-                      <Pipette size={16} />
+                    <div className="absolute inset-0 flex items-center justify-center text-gray-600 pointer-events-none group-hover:text-pink-600">
+                      <Pipette size={18} />
                     </div>
                   </div>
+
+                  {/* Preset Colors */}
                   {colors.map((c) => (
                     <button
                       key={c}
                       onClick={() => {
                         setFrameColor(c);
-                        setBgType("color");
+                        setBgType("color"); // Paksa ubah mode
                       }}
-                      className="aspect-square rounded-full border-2 shadow-sm"
+                      className={`aspect-square rounded-full border-2 shadow-sm transition hover:scale-110 ${
+                        frameColor === c && bgType === "color"
+                          ? "border-pink-500 ring-2 ring-pink-100"
+                          : "border-gray-200"
+                      }`}
                       style={{ backgroundColor: c }}
                     />
                   ))}
                 </div>
               </div>
 
-              {/* 2. Uploadan Admin (Backgrounds) */}
+              {/* 2. Uploadan Admin */}
               {customAssets.bgs.length > 0 && (
                 <div>
                   <h3 className="text-xs font-bold text-gray-400 uppercase mb-2">
@@ -339,7 +342,7 @@ const Editor = () => {
                           setSelectedPattern(bg.url);
                           setBgType("image");
                         }}
-                        className="aspect-video rounded-lg border-2 overflow-hidden hover:border-pink-500"
+                        className="aspect-video rounded-lg border-2 overflow-hidden hover:border-pink-500 transition"
                       >
                         <img
                           src={bg.url}
@@ -357,20 +360,23 @@ const Editor = () => {
                 <h3 className="text-xs font-bold text-gray-400 uppercase mb-2">
                   Pola Standar
                 </h3>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-full border overflow-hidden relative bg-gray-100">
+                <div className="flex items-center gap-2 mb-2 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                  <div className="w-8 h-8 rounded-full border overflow-hidden relative bg-white shadow-sm">
                     <input
                       type="color"
                       value={patternColor}
-                      onChange={(e) => setPatternColor(e.target.value)}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
+                      onChange={(e) => {
+                        setPatternColor(e.target.value);
+                        if (bgType !== "pattern") setBgType("pattern"); // Auto switch mode
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
                     <div
                       className="absolute inset-0 flex items-center justify-center"
                       style={{ backgroundColor: patternColor }}
                     ></div>
                   </div>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-500 font-medium">
                     Ganti Warna Pola
                   </span>
                 </div>
@@ -382,7 +388,11 @@ const Editor = () => {
                         setSelectedPattern(p.id);
                         setBgType("pattern");
                       }}
-                      className="h-12 border rounded bg-gray-50 text-xs font-bold text-gray-600 hover:bg-pink-50 hover:border-pink-300"
+                      className={`h-12 border rounded-lg bg-white text-xs font-bold text-gray-600 transition hover:bg-pink-50 hover:border-pink-300 ${
+                        selectedPattern === p.id && bgType === "pattern"
+                          ? "border-pink-500 bg-pink-50 text-pink-600"
+                          : ""
+                      }`}
                     >
                       {p.name}
                     </button>
@@ -394,7 +404,6 @@ const Editor = () => {
 
           {activeTab === "sticker" && (
             <div className="space-y-6">
-              {/* Stiker Admin */}
               {customAssets.stickers.length > 0 && (
                 <div>
                   <h3 className="text-xs font-bold text-gray-400 uppercase mb-2">
@@ -405,7 +414,7 @@ const Editor = () => {
                       <button
                         key={s.url}
                         onClick={() => addSticker(s.url, "image")}
-                        className="aspect-square p-1 border rounded hover:bg-gray-50"
+                        className="aspect-square p-1 border rounded hover:bg-gray-50 hover:border-pink-300 transition"
                       >
                         <img
                           src={s.url}
@@ -417,43 +426,47 @@ const Editor = () => {
                   </div>
                 </div>
               )}
-              {/* Emoji Bawaan */}
-              <div className="grid grid-cols-5 gap-2">
-                {[
-                  "❤️",
-                  "⭐",
-                  "🔥",
-                  "✨",
-                  "🌸",
-                  "📸",
-                  "🦋",
-                  "👑",
-                  "😎",
-                  "🌈",
-                ].map((e) => (
-                  <button
-                    key={e}
-                    onClick={() => addSticker(e, "emoji")}
-                    className="text-2xl hover:scale-125 transition"
-                  >
-                    {e}
-                  </button>
-                ))}
+              <div>
+                <h3 className="text-xs font-bold text-gray-400 uppercase mb-2">
+                  Emoji
+                </h3>
+                <div className="grid grid-cols-5 gap-2">
+                  {[
+                    "❤️",
+                    "⭐",
+                    "🔥",
+                    "✨",
+                    "🌸",
+                    "📸",
+                    "🦋",
+                    "👑",
+                    "😎",
+                    "🌈",
+                  ].map((e) => (
+                    <button
+                      key={e}
+                      onClick={() => addSticker(e, "emoji")}
+                      className="text-2xl hover:scale-125 transition p-2 bg-white rounded-lg border border-gray-100 hover:border-pink-200"
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
               </div>
               <button
                 onClick={() => setStickers([])}
-                className="w-full py-2 border-2 border-red-100 text-red-500 rounded-lg font-bold text-sm hover:bg-red-50"
+                className="w-full py-3 border-2 border-red-100 text-red-500 rounded-xl font-bold text-sm hover:bg-red-50 transition mt-4"
               >
-                Hapus Semua
+                Hapus Semua Stiker
               </button>
             </div>
           )}
         </div>
 
-        <div className="p-5 border-t">
+        <div className="p-5 border-t bg-white">
           <button
             onClick={handleFinish}
-            className="w-full py-4 bg-pink-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-pink-700 shadow-lg"
+            className="w-full py-4 bg-pink-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-pink-700 shadow-lg hover:shadow-xl hover:-translate-y-1 transition"
           >
             <Check /> Selesai / Kirim
           </button>
