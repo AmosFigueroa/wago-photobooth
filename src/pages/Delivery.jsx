@@ -28,17 +28,20 @@ const Delivery = () => {
   const [generatedGif, setGeneratedGif] = useState(null);
   const [isProcessingGif, setIsProcessingGif] = useState(false);
 
+  // Default ke putih jika tidak ada data dari editor
   const frameColor = location.state?.frameColorForGif || "#ffffff";
 
-  // --- PERBAIKAN URL (DIPECAH AGAR TIDAK ERROR SYNTAX) ---
+  // --- PERBAIKAN SINTAKS URL (DIPECAH AGAR AMAN) ---
   const SCRIPT_ID =
     "AKfycbyg1IZ8lTWCz3y-r-VS4E-s6fz9ug1rtu6id5w8uOd4eBmWtu_-VAEt8ZGTW408cfsu";
   const SCRIPT_URL = `https://script.google.com/macros/s/${SCRIPT_ID}/exec`;
 
+  // Proteksi Halaman
   useEffect(() => {
     if (!finalImage) navigate("/booth");
   }, [finalImage, navigate]);
 
+  // Auto Generate GIF saat masuk halaman
   useEffect(() => {
     if (rawPhotos && rawPhotos.length > 0 && !generatedGif) {
       createFramedGif();
@@ -47,18 +50,17 @@ const Delivery = () => {
 
   const processFramesWithBorder = async (photos, color) => {
     const processedImages = [];
-    // UKURAN HD 16:9
-    const targetW = 640;
-    const targetH = 360;
     const padding = 20;
     const footerH = 40;
+    const targetW = 640;
+    const targetH = 360;
 
     const canvas = document.createElement("canvas");
     canvas.width = targetW + padding * 2;
     canvas.height = targetH + padding * 2 + footerH;
     const ctx = canvas.getContext("2d");
 
-    // AKTIFKAN KUALITAS TINGGI
+    // AKTIFKAN IMAGE SMOOTHING (HD)
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
@@ -67,7 +69,7 @@ const Delivery = () => {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       const img = new Image();
-      img.crossOrigin = "Anonymous";
+      img.crossOrigin = "Anonymous"; // PENTING UNTUK CORS
       img.src = src;
       await new Promise((r) => {
         img.onload = r;
@@ -76,13 +78,13 @@ const Delivery = () => {
 
       ctx.drawImage(img, padding, padding, targetW, targetH);
 
+      // Text Footer
       const isDark = color === "#000000" || color.startsWith("#3");
       ctx.fillStyle = isDark ? "#ffffff" : "#333333";
       ctx.font = "bold 24px Courier New";
       ctx.textAlign = "center";
       ctx.fillText("WAGO BOOTH", canvas.width / 2, canvas.height - 15);
 
-      // KUALITAS JPEG MAX (1.0)
       processedImages.push(canvas.toDataURL("image/jpeg", 1.0));
     }
     return processedImages;
@@ -97,11 +99,11 @@ const Delivery = () => {
         {
           images: framedPhotos,
           interval: 0.5,
-          gifWidth: 680, // Ukuran Output HD
+          gifWidth: 680,
           gifHeight: 440,
           numFrames: 10,
           sampleInterval: 10, // Kualitas Warna Terbaik
-          numWorkers: 4, // Proses Cepat
+          numWorkers: 4,
         },
         function (obj) {
           if (!obj.error) {
