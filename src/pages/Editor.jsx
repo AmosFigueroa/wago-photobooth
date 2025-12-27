@@ -8,7 +8,7 @@ const Editor = () => {
   const { rawPhotos, setFinalImage } = usePhoto();
   const canvasRef = useRef(null);
 
-  // URL Backend Google Apps Script (PASTIKAN SUDAH DEPLOY & AKSES ANYONE)
+  // URL Backend Google Apps Script
   const SCRIPT_URL =
     "https://script.google.com/macros/s/AKfycbyg1IZ8lTWCz3y-r-VS4E-s6fz9ug1rtu6id5w8uOd4eBmWtu_-VAEt8ZGTW408cfsu/exec";
 
@@ -23,7 +23,6 @@ const Editor = () => {
   const [customAssets, setCustomAssets] = useState({ bgs: [], stickers: [] });
   const [stickers, setStickers] = useState([]);
 
-  // UPDATE: Warna Hitam diganti jadi #333333 (Agak Redup/Abu Gelap)
   const colors = [
     "#ffffff",
     "#333333",
@@ -52,7 +51,7 @@ const Editor = () => {
   const getSafeUrl = (url) => {
     if (url.includes("drive.google.com/uc?export=view&id=")) {
       const id = url.split("id=")[1];
-      return `https://lh3.googleusercontent.com/d/${id}`;
+      return `https://lh3.googleusercontent.com/d/${id}`; // URL alternatif yang lebih stabil untuk canvas
     }
     return url;
   };
@@ -210,11 +209,11 @@ const Editor = () => {
     canvas.height = canvasH;
 
     const renderCanvas = async () => {
-      // 1. BERSIHKAN CANVAS (PENTING)
+      // 1. BERSIHKAN CANVAS
       ctx.clearRect(0, 0, canvasW, canvasH);
+      ctx.globalCompositeOperation = "source-over"; // Reset mode blending
 
       // 2. LAYER PALING BAWAH: BACKGROUND
-      // Kita gambar background dulu sebelum foto, agar foto ada di DEPAN
       if (bgType === "color") {
         ctx.fillStyle = frameColor;
         ctx.fillRect(0, 0, canvasW, canvasH);
@@ -233,30 +232,36 @@ const Editor = () => {
           });
           drawImageProp(ctx, bgImg, 0, 0, canvasW, canvasH);
         } catch (err) {
+          // Fallback jika gagal load bg
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, canvasW, canvasH);
         }
       }
 
       // 3. LAYER TENGAH: FOTO USER
-      // Digambar SETELAH background, jadi pasti menimpa background
       for (let i = 0; i < rawPhotos.length; i++) {
         const img = new Image();
         img.src = rawPhotos[i];
         await new Promise((r) => (img.onload = r));
 
         const y = padding + i * (targetH + gap);
+
+        // --- PERBAIKAN PENTING DI SINI ---
+        // Gambar kotak putih solid DIBALIK foto untuk menutupi pola background
+        ctx.fillStyle = "#ffffff"; 
+        ctx.fillRect(padding, y, targetW, targetH);
+        // ---------------------------------
+
         drawImageProp(ctx, img, padding, y, targetW, targetH);
       }
 
       // 4. LAYER ATAS: TEKS FOOTER
-      // Logika warna teks: Jika background gelap (#333333 atau Hitam), teks jadi putih
       let isDark =
         bgType === "color" &&
         (frameColor === "#000000" || frameColor === "#333333");
 
       if (bgType === "pattern") {
-        // Kotak putih transparan di footer agar teks terbaca jelas di atas pola
+        // Kotak transparan di footer
         ctx.fillStyle = "rgba(255,255,255,0.9)";
         ctx.fillRect(0, canvasH - 110, canvasW, 110);
         isDark = false;
