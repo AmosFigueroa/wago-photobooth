@@ -51,7 +51,7 @@ const Editor = () => {
   const getSafeUrl = (url) => {
     if (url.includes("drive.google.com/uc?export=view&id=")) {
       const id = url.split("id=")[1];
-      return `https://lh3.googleusercontent.com/d/${id}`; // URL alternatif yang lebih stabil untuk canvas
+      return `https://lh3.googleusercontent.com/d/${id}`;
     }
     return url;
   };
@@ -185,7 +185,7 @@ const Editor = () => {
     ctx.drawImage(img, cx, cy, cw, ch, x, y, w, h);
   };
 
-  // --- RENDER CANVAS UTAMA ---
+  // --- RENDER CANVAS UTAMA (FIXED VERSION) ---
   useEffect(() => {
     if (!rawPhotos || rawPhotos.length === 0) return;
 
@@ -193,6 +193,7 @@ const Editor = () => {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
 
+    // Setting Ukuran
     const targetW = 640;
     const targetH = 480;
     const padding = 40;
@@ -209,11 +210,14 @@ const Editor = () => {
     canvas.height = canvasH;
 
     const renderCanvas = async () => {
-      // 1. BERSIHKAN CANVAS
+      // 1. RESET CANVAS (PENTING)
       ctx.clearRect(0, 0, canvasW, canvasH);
-      ctx.globalCompositeOperation = "source-over"; // Reset mode blending
+      ctx.globalCompositeOperation = "source-over"; // Reset blending mode ke normal
+      ctx.globalAlpha = 1.0;
+      ctx.shadowBlur = 0;
 
-      // 2. LAYER PALING BAWAH: BACKGROUND
+      // 2. LAYER 1: BACKGROUND (Paling Bawah)
+      ctx.save();
       if (bgType === "color") {
         ctx.fillStyle = frameColor;
         ctx.fillRect(0, 0, canvasW, canvasH);
@@ -226,42 +230,52 @@ const Editor = () => {
           const bgImg = new Image();
           bgImg.crossOrigin = "anonymous";
           bgImg.src = getSafeUrl(selectedBgUrl);
-          await new Promise((resolve, reject) => {
+          await new Promise((resolve) => {
             bgImg.onload = resolve;
-            bgImg.onerror = reject;
+            bgImg.onerror = resolve;
           });
           drawImageProp(ctx, bgImg, 0, 0, canvasW, canvasH);
         } catch (err) {
-          // Fallback jika gagal load bg
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, canvasW, canvasH);
         }
       }
+      ctx.restore();
 
-      // 3. LAYER TENGAH: FOTO USER
+      // 3. LAYER 2: FOTO USER
       for (let i = 0; i < rawPhotos.length; i++) {
         const img = new Image();
         img.src = rawPhotos[i];
+        // Tunggu image load
         await new Promise((r) => (img.onload = r));
 
         const y = padding + i * (targetH + gap);
 
-        // --- PERBAIKAN PENTING DI SINI ---
-        // Gambar kotak putih solid DIBALIK foto untuk menutupi pola background
-        ctx.fillStyle = "#ffffff"; 
-        ctx.fillRect(padding, y, targetW, targetH);
-        // ---------------------------------
+        // --- FIX UTAMA: LAYER PELINDUNG ---
+        // Kita paksa mode gambar normal
+        ctx.globalCompositeOperation = "source-over";
 
+        // Gambar KOTAK PUTIH SOLID dulu di posisi foto
+        // Ini menutupi pola polkadot yang ada di background
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(padding, y, targetW, targetH);
+
+        // Baru gambar foto di atas kotak putih itu
         drawImageProp(ctx, img, padding, y, targetW, targetH);
+
+        // (Opsional) Border tipis biar rapi
+        ctx.strokeStyle = "rgba(0,0,0,0.1)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(padding, y, targetW, targetH);
       }
 
-      // 4. LAYER ATAS: TEKS FOOTER
+      // 4. LAYER 3: FOOTER
+      ctx.globalCompositeOperation = "source-over";
       let isDark =
         bgType === "color" &&
         (frameColor === "#000000" || frameColor === "#333333");
 
       if (bgType === "pattern") {
-        // Kotak transparan di footer
         ctx.fillStyle = "rgba(255,255,255,0.9)";
         ctx.fillRect(0, canvasH - 110, canvasW, 110);
         isDark = false;
@@ -274,15 +288,13 @@ const Editor = () => {
       ctx.font = "24px Arial";
       ctx.fillText(new Date().toLocaleDateString(), canvasW / 2, canvasH - 30);
 
-      // 5. LAYER PALING ATAS: STIKER
+      // 5. LAYER 4: STIKER (Paling Atas)
       for (const s of stickers) {
         const sImg = new Image();
         sImg.crossOrigin = "anonymous";
         sImg.src = getSafeUrl(s.url);
         try {
-          await new Promise((r) => {
-            sImg.onload = r;
-          });
+          await new Promise((r) => (sImg.onload = r));
           ctx.drawImage(sImg, s.x, s.y, 150, 150);
         } catch (e) {}
       }
