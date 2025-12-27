@@ -9,6 +9,7 @@ import {
   Camera,
   RefreshCw,
   Check,
+  Zap,
 } from "lucide-react";
 import { usePhoto } from "../PhotoContext";
 
@@ -17,18 +18,16 @@ const Booth = () => {
   const navigate = useNavigate();
   const { setRawPhotos, setSessionConfig } = usePhoto();
 
-  // --- STATE LOKAL ---
+  // --- STATE ---
   const [filter, setFilter] = useState("none");
   const [countdown, setCountdown] = useState(0);
   const [isCapturing, setIsCapturing] = useState(false);
-  const [capturedImages, setCapturedImages] = useState([]); // Menyimpan foto sementara di sidebar
-  const [isSessionDone, setIsSessionDone] = useState(false); // Penanda sesi selesai
+  const [capturedImages, setCapturedImages] = useState([]);
+  const [isSessionDone, setIsSessionDone] = useState(false);
 
-  // State Dropdown
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
   const [showTimerMenu, setShowTimerMenu] = useState(false);
 
-  // Default Config
   const [selectedLayout, setSelectedLayout] = useState({
     label: "4 Foto",
     type: "strip-4",
@@ -37,7 +36,7 @@ const Booth = () => {
   });
   const [selectedTimer, setSelectedTimer] = useState(3);
 
-  // --- DATA OPSI ---
+  // --- DATA OPTIONS ---
   const layoutOptions = [
     {
       label: "2 Foto",
@@ -103,7 +102,6 @@ const Booth = () => {
     { name: "Vintage", value: "sepia(80%) contrast(120%)", color: "#ffd3b6" },
   ];
 
-  // Akses Kamera
   useEffect(() => {
     const startCamera = async () => {
       try {
@@ -119,14 +117,12 @@ const Booth = () => {
     startCamera();
   }, []);
 
-  // Fungsi Reset / Foto Ulang Total
   const handleRetakeAll = () => {
     setCapturedImages([]);
     setIsSessionDone(false);
     setIsCapturing(false);
   };
 
-  // Capture Frame
   const captureSingleFrame = () => {
     const video = videoRef.current;
     const canvas = document.createElement("canvas");
@@ -140,16 +136,12 @@ const Booth = () => {
     return canvas.toDataURL("image/png");
   };
 
-  // --- LOGIC SESI FOTO (Diperbarui dengan Sidebar) ---
   const startPhotoSession = () => {
     if (isCapturing) return;
-
-    // Jika sesi sudah selesai sebelumnya, reset dulu
     if (isSessionDone) {
       setCapturedImages([]);
       setIsSessionDone(false);
     }
-
     setIsCapturing(true);
     let currentShot = 0;
     const totalShots = selectedLayout.count;
@@ -165,32 +157,22 @@ const Booth = () => {
         if (count === 0) {
           clearInterval(timer);
           const img = captureSingleFrame();
-
-          // Update sidebar real-time
-          setCapturedImages((prev) => {
-            const newPhotos = [...prev, img];
-            return newPhotos;
-          });
-
+          setCapturedImages((prev) => [...prev, img]);
           currentShot++;
 
           if (currentShot < totalShots) {
-            // Jeda 1 detik sebelum foto berikutnya
             setTimeout(takeNextShot, 1000);
           } else {
-            // Selesai
             setIsCapturing(false);
             setIsSessionDone(true);
           }
         }
       }, 1000);
     };
-
     takeNextShot();
   };
 
   const handleNext = () => {
-    // Simpan data final ke context dan pindah halaman
     setSessionConfig({
       layout: selectedLayout.type,
       count: selectedLayout.count,
@@ -202,23 +184,22 @@ const Booth = () => {
 
   return (
     <div className="h-screen w-screen bg-white flex flex-col font-sans relative overflow-hidden">
-      {/* HEADER TOOLS */}
-      <div className="h-16 flex items-center justify-center gap-4 bg-white z-30 px-4 shadow-sm border-b border-gray-100">
+      {/* 1. HEADER (Dropdown Menu) */}
+      <div className="h-16 shrink-0 flex items-center justify-center gap-4 bg-white z-30 px-4 shadow-sm border-b border-gray-100 relative">
         <button
           onClick={() => navigate("/")}
-          className="absolute left-4 p-2 rounded-full hover:bg-gray-100"
+          className="absolute left-4 p-2 rounded-full hover:bg-gray-100 text-gray-600"
         >
-          <ArrowLeft size={20} />
+          <ArrowLeft size={24} />
         </button>
 
-        {/* Dropdown Layout */}
         <div className="relative">
           <button
             onClick={() => {
               setShowLayoutMenu(!showLayoutMenu);
               setShowTimerMenu(false);
             }}
-            className="flex items-center gap-2 px-4 py-1.5 bg-gray-50 border border-gray-200 rounded-full hover:bg-gray-100 transition text-sm font-bold text-gray-700"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-full hover:bg-gray-100 transition text-sm font-bold text-gray-700"
           >
             {selectedLayout.icon} {selectedLayout.label}{" "}
             {showLayoutMenu ? (
@@ -247,16 +228,15 @@ const Booth = () => {
           )}
         </div>
 
-        {/* Dropdown Timer */}
         <div className="relative">
           <button
             onClick={() => {
               setShowTimerMenu(!showTimerMenu);
               setShowLayoutMenu(false);
             }}
-            className="flex items-center gap-2 px-4 py-1.5 bg-gray-50 border border-gray-200 rounded-full hover:bg-gray-100 transition text-sm font-bold text-gray-700"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-full hover:bg-gray-100 transition text-sm font-bold text-gray-700"
           >
-            <Clock size={14} /> {selectedTimer}s{" "}
+            <Clock size={16} /> {selectedTimer}s{" "}
             {showTimerMenu ? (
               <ChevronUp size={14} />
             ) : (
@@ -282,12 +262,11 @@ const Booth = () => {
         </div>
       </div>
 
-      {/* MAIN CONTENT: FLEX ROW (Camera Kiri - Sidebar Kanan) */}
-      <div className="flex-1 flex overflow-hidden bg-gray-50">
-        {/* 1. AREA KAMERA (Tengah/Kiri) */}
-        <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
-          {/* Wrapper Kamera dengan Aspect Ratio 4:3 */}
-          <div className="relative w-full max-w-2xl aspect-[4/3] bg-black rounded-3xl overflow-hidden shadow-2xl ring-4 ring-white">
+      {/* 2. MIDDLE AREA (Kamera & Sidebar) */}
+      <div className="flex-1 flex overflow-hidden bg-gray-100 relative">
+        {/* AREA KAMERA (Mengisi sisa ruang) */}
+        <div className="flex-1 flex flex-col items-center justify-center p-4 bg-gray-50">
+          <div className="relative w-full max-w-3xl aspect-[4/3] bg-black rounded-3xl overflow-hidden shadow-2xl ring-8 ring-white">
             {countdown > 0 && (
               <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
                 <span className="text-[100px] font-black text-white animate-bounce drop-shadow-lg">
@@ -295,7 +274,6 @@ const Booth = () => {
                 </span>
               </div>
             )}
-
             <video
               ref={videoRef}
               autoPlay
@@ -304,119 +282,126 @@ const Booth = () => {
               style={{ filter: filter }}
             />
 
-            {/* Indikator Status */}
+            {/* Badge Status */}
             {isCapturing && (
-              <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">
-                Merekam... {capturedImages.length + 1}/{selectedLayout.count}
+              <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse flex items-center gap-2">
+                <div className="w-2 h-2 bg-white rounded-full"></div> REC{" "}
+                {capturedImages.length + 1}/{selectedLayout.count}
               </div>
             )}
           </div>
-
-          {/* Filter Bar (Di bawah kamera) */}
-          <div className="mt-6 flex gap-4 overflow-x-auto w-full max-w-xl px-4 pb-2 custom-scrollbar justify-center">
-            {filters.map((f) => (
-              <button
-                key={f.name}
-                onClick={() => setFilter(f.value)}
-                className={`flex flex-col items-center gap-2 min-w-[60px] transition ${
-                  filter === f.value
-                    ? "scale-110 opacity-100"
-                    : "opacity-50 hover:opacity-100"
-                }`}
-              >
-                <div
-                  className="w-10 h-10 rounded-full border-2 border-white shadow-md"
-                  style={{ backgroundColor: f.color }}
-                ></div>
-                <span className="text-[10px] font-bold text-gray-500 uppercase">
-                  {f.name}
-                </span>
-              </button>
-            ))}
-          </div>
         </div>
 
-        {/* 2. SIDEBAR HASIL (Kanan) */}
-        <div className="w-24 md:w-32 bg-white border-l border-gray-100 flex flex-col items-center py-4 gap-3 overflow-y-auto z-20 shadow-[-5px_0_15px_rgba(0,0,0,0.02)]">
-          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-            Hasil
+        {/* SIDEBAR HASIL (Kanan) */}
+        <div className="w-24 md:w-32 bg-white border-l border-gray-200 flex flex-col items-center py-4 gap-3 overflow-y-auto shrink-0 z-20">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+            Preview
           </span>
-
-          {/* Generate Placeholder Slot */}
           {Array.from({ length: selectedLayout.count }).map((_, idx) => (
             <div
               key={idx}
-              className="relative w-20 h-20 md:w-24 md:h-24 bg-gray-100 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden shrink-0 transition-all duration-300"
+              className="relative w-16 h-16 md:w-20 md:h-20 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden shrink-0"
             >
               {capturedImages[idx] ? (
-                // Jika foto sudah ada
-                <div className="relative w-full h-full group">
+                <div className="w-full h-full relative group">
                   <img
                     src={capturedImages[idx]}
-                    alt="Captured"
+                    alt={`Shot ${idx + 1}`}
                     className="w-full h-full object-cover"
                   />
-                  {/* Overlay nomor urut */}
-                  <div className="absolute bottom-1 right-1 bg-black/50 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full">
+                  <div className="absolute top-0 right-0 bg-pink-500 text-white text-[10px] w-4 h-4 flex items-center justify-center font-bold">
                     {idx + 1}
                   </div>
                 </div>
               ) : (
-                // Jika masih kosong
-                <span className="text-gray-300 font-bold text-xl">
-                  {idx + 1}
-                </span>
+                <div className="text-gray-300 font-bold text-xl">{idx + 1}</div>
               )}
             </div>
           ))}
-
-          {/* Tombol Reset Kecil di Sidebar */}
           {capturedImages.length > 0 && !isCapturing && (
             <button
               onClick={handleRetakeAll}
-              className="mt-auto mb-20 p-2 text-gray-400 hover:text-red-500 transition"
-              title="Hapus Semua"
+              className="mt-4 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition"
+              title="Reset"
             >
-              <RefreshCw size={20} />
+              <RefreshCw size={18} />
             </button>
           )}
         </div>
       </div>
 
-      {/* BOTTOM ACTION BAR (Tombol Shutter / Next) */}
-      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white via-white to-transparent flex items-center justify-center z-40 pointer-events-none">
-        <div className="pointer-events-auto mb-6">
-          {!isSessionDone ? (
-            // Tombol Shutter (Mulai Foto)
+      {/* 3. CONTROL PANEL BAWAH (Filter & Tombol Besar) */}
+      <div className="bg-white border-t border-gray-100 pt-2 pb-6 px-4 z-40 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] rounded-t-[30px] flex flex-col items-center gap-4 shrink-0">
+        {/* Filter List */}
+        <div className="w-full max-w-lg overflow-x-auto custom-scrollbar flex gap-4 justify-center py-2">
+          {filters.map((f) => (
             <button
-              onClick={startPhotoSession}
-              disabled={isCapturing}
-              className={`w-16 h-16 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 ${
-                isCapturing
-                  ? "bg-gray-300 scale-90"
-                  : "bg-[#ff4785] hover:bg-[#ff2e73] hover:scale-105 hover:shadow-2xl"
+              key={f.name}
+              onClick={() => setFilter(f.value)}
+              className={`flex flex-col items-center gap-1 min-w-[60px] group transition ${
+                filter === f.value
+                  ? "opacity-100 scale-110"
+                  : "opacity-60 hover:opacity-100"
               }`}
             >
-              {isCapturing ? (
-                <span className="text-2xl animate-spin">⏳</span>
-              ) : (
-                <div className="w-6 h-6 rounded-full border-[3px] border-white"></div>
-              )}
+              <div
+                className={`w-12 h-12 rounded-full border-2 shadow-sm transition ${
+                  filter === f.value
+                    ? "border-pink-500 ring-2 ring-pink-100"
+                    : "border-gray-100"
+                }`}
+                style={{ backgroundColor: f.color }}
+              ></div>
+              <span
+                className={`text-[10px] font-bold uppercase tracking-wider ${
+                  filter === f.value ? "text-pink-500" : "text-gray-400"
+                }`}
+              >
+                {f.name}
+              </span>
             </button>
+          ))}
+        </div>
+
+        {/* AREA TOMBOL UTAMA */}
+        <div className="flex items-center justify-center w-full relative">
+          {!isSessionDone ? (
+            // TOMBOL SHUTTER BESAR
+            <div className="flex flex-col items-center gap-2 transform translate-y-[-10px]">
+              <button
+                onClick={startPhotoSession}
+                disabled={isCapturing}
+                className={`w-24 h-24 rounded-full flex items-center justify-center shadow-[0_10px_30px_rgba(236,72,153,0.4)] transition-all duration-300 border-4 border-white ring-4 ring-pink-50 ${
+                  isCapturing
+                    ? "bg-gray-300 scale-95"
+                    : "bg-gradient-to-br from-pink-500 to-rose-600 hover:scale-110 hover:shadow-[0_15px_40px_rgba(236,72,153,0.6)]"
+                }`}
+              >
+                {isCapturing ? (
+                  <span className="text-3xl animate-spin">⏳</span>
+                ) : (
+                  <Camera size={40} className="text-white fill-white/20" />
+                )}
+              </button>
+              {/* Label Tombol */}
+              <span className="text-sm font-bold text-gray-500 uppercase tracking-widest animate-pulse">
+                {isCapturing ? "Sabar ya..." : "Mulai Foto"}
+              </span>
+            </div>
           ) : (
-            // Tombol Berikutnya (Muncul setelah selesai)
-            <div className="flex gap-4 animate-fade-in-up">
+            // TOMBOL SELESAI (Next/Ulang)
+            <div className="flex gap-4 animate-fade-in-up pb-2">
               <button
                 onClick={handleRetakeAll}
-                className="px-6 py-3 rounded-full bg-white border border-gray-300 text-gray-600 font-bold shadow-lg hover:bg-gray-50 flex items-center gap-2"
+                className="px-6 py-4 rounded-2xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 transition flex items-center gap-2"
               >
-                <RefreshCw size={18} /> Ulang
+                <RefreshCw size={20} /> Ulang
               </button>
               <button
                 onClick={handleNext}
-                className="px-8 py-3 rounded-full bg-[#ff4785] text-white font-bold shadow-[0_4px_15px_rgba(255,71,133,0.4)] hover:bg-[#ff2e73] hover:scale-105 transition flex items-center gap-2"
+                className="px-8 py-4 rounded-2xl bg-[#ff4785] text-white font-bold shadow-lg hover:bg-[#ff2e73] hover:scale-105 transition flex items-center gap-2"
               >
-                Berikutnya <Check size={18} />
+                Lanjut Edit <Check size={20} />
               </button>
             </div>
           )}
