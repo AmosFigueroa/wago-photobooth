@@ -1,6 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Palette, Smile, Check, ArrowLeft, Pipette } from "lucide-react";
+import {
+  Palette,
+  Smile,
+  Check,
+  ArrowLeft,
+  Pipette,
+  Image as ImageIcon,
+} from "lucide-react";
 import { usePhoto } from "../PhotoContext";
 
 const Editor = () => {
@@ -8,7 +15,7 @@ const Editor = () => {
   const { rawPhotos, setFinalImage, sessionConfig } = usePhoto();
   const canvasRef = useRef(null);
 
-  // URL BACKEND (DIPECAH SUPAYA AMAN)
+  // URL BACKEND (Pastikan tidak ada typo)
   const SCRIPT_ID =
     "AKfycbyg1IZ8lTWCz3y-r-VS4E-s6fz9ug1rtu6id5w8uOd4eBmWtu_-VAEt8ZGTW408cfsu";
   const SCRIPT_URL = `https://script.google.com/macros/s/${SCRIPT_ID}/exec`;
@@ -43,7 +50,6 @@ const Editor = () => {
     fetchAssets();
   }, []);
 
-  // Preset
   const colors = [
     "#ffffff",
     "#000000",
@@ -67,12 +73,8 @@ const Editor = () => {
     const size = 40;
     tCanvas.width = size;
     tCanvas.height = size;
-
-    // Background dasar transparan agar bisa ditumpuk (atau putih)
     tCtx.fillStyle = "#ffffff";
     tCtx.fillRect(0, 0, size, size);
-
-    // Warna Pola dari Input User
     tCtx.fillStyle = color;
     tCtx.strokeStyle = color;
 
@@ -97,7 +99,7 @@ const Editor = () => {
     return ctx.createPattern(tCanvas, "repeat");
   };
 
-  // 2. MAIN DRAWING LOGIC
+  // 2. MAIN DRAWING LOGIC (FIXED)
   useEffect(() => {
     if (rawPhotos.length === 0) {
       navigate("/booth");
@@ -140,7 +142,6 @@ const Editor = () => {
             x = padding;
             y = padding + i * (targetH + gap);
           }
-          // Crop Logic
           const sAspect = img.width / img.height;
           const tAspect = targetW / targetH;
           let sX = 0,
@@ -154,7 +155,6 @@ const Editor = () => {
             sH = img.width / tAspect;
             sY = (img.height - sH) / 2;
           }
-
           ctx.drawImage(img, sX, sY, sW, sH, x, y, targetW, targetH);
           loaded++;
           if (loaded === count) drawDecorations(ctx, canvasW, canvasH);
@@ -163,26 +163,29 @@ const Editor = () => {
       });
     };
 
-    // LOGIKA RENDER BACKGROUND
+    // LOGIKA RENDER BACKGROUND (FIXED)
     if (bgType === "color") {
       ctx.fillStyle = frameColor;
       ctx.fillRect(0, 0, canvasW, canvasH);
       drawPhotos();
     } else if (bgType === "image") {
       const bgImg = new Image();
-      bgImg.crossOrigin = "Anonymous";
+      bgImg.crossOrigin = "Anonymous"; // PENTING AGAR TIDAK ERROR
       bgImg.src = selectedPattern;
       bgImg.onload = () => {
+        // Gambar BG memenuhi seluruh kanvas
         ctx.drawImage(bgImg, 0, 0, canvasW, canvasH);
         drawPhotos();
       };
       bgImg.onerror = () => {
+        // Fallback ke putih jika gagal load
+        console.error("Gagal load BG image");
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvasW, canvasH);
         drawPhotos();
       };
     } else {
-      // Render Pattern dengan warna dinamis
+      // Pattern Mode
       const pattern = createPattern(ctx, selectedPattern, patternColor);
       ctx.fillStyle = pattern;
       ctx.fillRect(0, 0, canvasW, canvasH);
@@ -197,11 +200,13 @@ const Editor = () => {
     patternColor,
     stickers,
     navigate,
-  ]);
+  ]); // Dependency lengkap
 
   const drawDecorations = (ctx, w, h) => {
+    // Footer Background agar tulisan terbaca
     ctx.fillStyle =
       bgType === "pattern" ? "rgba(255,255,255,0.85)" : "transparent";
+    // Jika BG image gelap, mungkin perlu footer background juga (opsional)
     if (bgType === "pattern") ctx.fillRect(0, h - 100, w, 100);
 
     ctx.fillStyle = "#333";
@@ -238,7 +243,9 @@ const Editor = () => {
         const colorForGif = bgType === "color" ? frameColor : "#ffffff";
         navigate("/delivery", { state: { frameColorForGif: colorForGif } });
       } catch (e) {
-        alert("Gagal simpan. Coba ganti background.");
+        alert(
+          "Security Error: Gambar Background terproteksi. Coba ganti background."
+        );
       }
     }
   };
@@ -317,7 +324,7 @@ const Editor = () => {
                 </div>
               </div>
 
-              {/* 2. Uploadan Admin */}
+              {/* 2. Custom Backgrounds (FIXED) */}
               {customAssets.bgs.length > 0 && (
                 <div>
                   <h3 className="text-xs font-bold text-gray-400 uppercase mb-2">
@@ -329,9 +336,13 @@ const Editor = () => {
                         key={bg.url}
                         onClick={() => {
                           setSelectedPattern(bg.url);
-                          setBgType("image");
+                          setBgType("image"); // PAKSA PINDAH KE MODE IMAGE
                         }}
-                        className="aspect-video rounded-lg border-2 overflow-hidden hover:border-pink-500"
+                        className={`aspect-video rounded-lg border-2 overflow-hidden hover:border-pink-500 transition relative ${
+                          bgType === "image" && selectedPattern === bg.url
+                            ? "border-pink-500 ring-2 ring-pink-200"
+                            : "border-gray-100"
+                        }`}
                       >
                         <img
                           src={bg.url}
@@ -344,7 +355,7 @@ const Editor = () => {
                 </div>
               )}
 
-              {/* 3. Pola & Color Picker Tekstur (FIXED) */}
+              {/* 3. Pola Standar & Color Picker (FIXED) */}
               <div>
                 <h3 className="text-xs font-bold text-gray-400 uppercase mb-2">
                   Pola Standar
@@ -356,7 +367,7 @@ const Editor = () => {
                       value={patternColor}
                       onChange={(e) => {
                         setPatternColor(e.target.value);
-                        // FORCE UPDATE: Jika user ganti warna, otomatis masuk mode pattern
+                        // FORCE UPDATE: Otomatis masuk mode pattern saat ganti warna
                         if (bgType !== "pattern") setBgType("pattern");
                       }}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -383,9 +394,9 @@ const Editor = () => {
                         setSelectedPattern(p.id);
                         setBgType("pattern");
                       }}
-                      className={`h-12 border rounded-lg bg-white text-xs font-bold text-gray-600 hover:bg-pink-50 hover:border-pink-300 ${
+                      className={`h-12 border rounded-lg bg-white text-xs font-bold text-gray-600 hover:bg-pink-50 hover:border-pink-300 transition ${
                         bgType === "pattern" && selectedPattern === p.id
-                          ? "border-pink-500 text-pink-600"
+                          ? "border-pink-500 bg-pink-50 text-pink-600"
                           : ""
                       }`}
                     >
@@ -409,7 +420,7 @@ const Editor = () => {
                       <button
                         key={s.url}
                         onClick={() => addSticker(s.url, "image")}
-                        className="aspect-square p-1 border rounded hover:bg-gray-50"
+                        className="aspect-square p-1 border rounded hover:bg-gray-50 hover:border-pink-300 transition"
                       >
                         <img
                           src={s.url}
