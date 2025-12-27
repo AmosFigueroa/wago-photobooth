@@ -426,4 +426,3 @@ const Booth = () => {
   );
 };
 export default Booth;
-git add .
