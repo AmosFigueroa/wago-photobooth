@@ -6,7 +6,9 @@ import {
   ChevronUp,
   Clock,
   Grid,
-  Image as ImageIcon,
+  Camera,
+  RefreshCw,
+  Check,
 } from "lucide-react";
 import { usePhoto } from "../PhotoContext";
 
@@ -19,12 +21,14 @@ const Booth = () => {
   const [filter, setFilter] = useState("none");
   const [countdown, setCountdown] = useState(0);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [capturedImages, setCapturedImages] = useState([]); // Menyimpan foto sementara di sidebar
+  const [isSessionDone, setIsSessionDone] = useState(false); // Penanda sesi selesai
 
   // State Dropdown
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
   const [showTimerMenu, setShowTimerMenu] = useState(false);
 
-  // Pilihan Config (Default)
+  // Default Config
   const [selectedLayout, setSelectedLayout] = useState({
     label: "4 Foto",
     type: "strip-4",
@@ -33,7 +37,7 @@ const Booth = () => {
   });
   const [selectedTimer, setSelectedTimer] = useState(3);
 
-  // --- DATA OPSI DROPDOWN (Sesuai Gambar Referensi) ---
+  // --- DATA OPSI ---
   const layoutOptions = [
     {
       label: "2 Foto",
@@ -87,7 +91,6 @@ const Booth = () => {
   ];
 
   const timerOptions = [3, 5, 10];
-
   const filters = [
     { name: "Normal", value: "none", color: "#ff7eb3" },
     {
@@ -116,7 +119,14 @@ const Booth = () => {
     startCamera();
   }, []);
 
-  // Capture Frame Tunggal
+  // Fungsi Reset / Foto Ulang Total
+  const handleRetakeAll = () => {
+    setCapturedImages([]);
+    setIsSessionDone(false);
+    setIsCapturing(false);
+  };
+
+  // Capture Frame
   const captureSingleFrame = () => {
     const video = videoRef.current;
     const canvas = document.createElement("canvas");
@@ -130,23 +140,21 @@ const Booth = () => {
     return canvas.toDataURL("image/png");
   };
 
-  // --- LOGIC SESI FOTO UTAMA ---
+  // --- LOGIC SESI FOTO (Diperbarui dengan Sidebar) ---
   const startPhotoSession = () => {
     if (isCapturing) return;
 
-    // Simpan config ke context agar Editor tahu
-    setSessionConfig({
-      layout: selectedLayout.type,
-      count: selectedLayout.count,
-      timer: selectedTimer,
-    });
+    // Jika sesi sudah selesai sebelumnya, reset dulu
+    if (isSessionDone) {
+      setCapturedImages([]);
+      setIsSessionDone(false);
+    }
 
     setIsCapturing(true);
-    const photos = [];
-    let shotsTaken = 0;
-    const totalShots = selectedLayout.count; // Ambil jumlah foto sesuai pilihan dropdown
+    let currentShot = 0;
+    const totalShots = selectedLayout.count;
 
-    const takeShot = () => {
+    const takeNextShot = () => {
       let count = selectedTimer;
       setCountdown(count);
 
@@ -157,62 +165,80 @@ const Booth = () => {
         if (count === 0) {
           clearInterval(timer);
           const img = captureSingleFrame();
-          photos.push(img);
-          shotsTaken++;
 
-          if (shotsTaken < totalShots) {
-            setTimeout(takeShot, 1000); // Jeda 1 detik antar foto
+          // Update sidebar real-time
+          setCapturedImages((prev) => {
+            const newPhotos = [...prev, img];
+            return newPhotos;
+          });
+
+          currentShot++;
+
+          if (currentShot < totalShots) {
+            // Jeda 1 detik sebelum foto berikutnya
+            setTimeout(takeNextShot, 1000);
           } else {
-            setRawPhotos(photos);
-            navigate("/editor");
+            // Selesai
+            setIsCapturing(false);
+            setIsSessionDone(true);
           }
         }
       }, 1000);
     };
 
-    takeShot();
+    takeNextShot();
+  };
+
+  const handleNext = () => {
+    // Simpan data final ke context dan pindah halaman
+    setSessionConfig({
+      layout: selectedLayout.type,
+      count: selectedLayout.count,
+      timer: selectedTimer,
+    });
+    setRawPhotos(capturedImages);
+    navigate("/editor");
   };
 
   return (
-    <div className="h-screen w-screen bg-white flex flex-col font-sans relative">
-      {/* HEADER TOOLS (Dropdown Area) */}
-      <div className="h-20 flex items-center justify-center gap-4 bg-white z-30 px-4 relative shadow-sm">
+    <div className="h-screen w-screen bg-white flex flex-col font-sans relative overflow-hidden">
+      {/* HEADER TOOLS */}
+      <div className="h-16 flex items-center justify-center gap-4 bg-white z-30 px-4 shadow-sm border-b border-gray-100">
         <button
           onClick={() => navigate("/")}
           className="absolute left-4 p-2 rounded-full hover:bg-gray-100"
         >
-          <ArrowLeft size={24} />
+          <ArrowLeft size={20} />
         </button>
 
-        {/* 1. DROPDOWN LAYOUT */}
+        {/* Dropdown Layout */}
         <div className="relative">
           <button
             onClick={() => {
               setShowLayoutMenu(!showLayoutMenu);
               setShowTimerMenu(false);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition text-sm font-bold text-gray-700"
+            className="flex items-center gap-2 px-4 py-1.5 bg-gray-50 border border-gray-200 rounded-full hover:bg-gray-100 transition text-sm font-bold text-gray-700"
           >
-            {selectedLayout.icon}
-            {selectedLayout.label}
+            {selectedLayout.icon} {selectedLayout.label}{" "}
             {showLayoutMenu ? (
-              <ChevronUp size={16} />
+              <ChevronUp size={14} />
             ) : (
-              <ChevronDown size={16} />
+              <ChevronDown size={14} />
             )}
           </button>
-
-          {/* Menu Dropdown */}
           {showLayoutMenu && (
-            <div className="absolute top-full mt-2 left-0 w-48 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in-up">
+            <div className="absolute top-full mt-2 left-0 w-48 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
               {layoutOptions.map((opt) => (
                 <button
                   key={opt.type}
                   onClick={() => {
                     setSelectedLayout(opt);
                     setShowLayoutMenu(false);
+                    setCapturedImages([]);
+                    setIsSessionDone(false);
                   }}
-                  className="w-full text-left px-4 py-3 hover:bg-pink-50 flex items-center gap-3 text-sm text-gray-700 transition"
+                  className="w-full text-left px-4 py-3 hover:bg-pink-50 flex items-center gap-3 text-sm text-gray-700"
                 >
                   {opt.icon} {opt.label}
                 </button>
@@ -221,26 +247,24 @@ const Booth = () => {
           )}
         </div>
 
-        {/* 2. DROPDOWN TIMER */}
+        {/* Dropdown Timer */}
         <div className="relative">
           <button
             onClick={() => {
               setShowTimerMenu(!showTimerMenu);
               setShowLayoutMenu(false);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition text-sm font-bold text-gray-700"
+            className="flex items-center gap-2 px-4 py-1.5 bg-gray-50 border border-gray-200 rounded-full hover:bg-gray-100 transition text-sm font-bold text-gray-700"
           >
-            <Clock size={16} /> {selectedTimer}s Tertunda
+            <Clock size={14} /> {selectedTimer}s{" "}
             {showTimerMenu ? (
-              <ChevronUp size={16} />
+              <ChevronUp size={14} />
             ) : (
-              <ChevronDown size={16} />
+              <ChevronDown size={14} />
             )}
           </button>
-
-          {/* Menu Dropdown */}
           {showTimerMenu && (
-            <div className="absolute top-full mt-2 left-0 w-40 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in-up">
+            <div className="absolute top-full mt-2 left-0 w-32 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
               {timerOptions.map((t) => (
                 <button
                   key={t}
@@ -248,9 +272,9 @@ const Booth = () => {
                     setSelectedTimer(t);
                     setShowTimerMenu(false);
                   }}
-                  className="w-full text-left px-4 py-3 hover:bg-pink-50 text-sm text-gray-700 transition font-medium"
+                  className="w-full text-left px-4 py-3 hover:bg-pink-50 text-sm text-gray-700"
                 >
-                  {t}s Tertunda
+                  {t}s
                 </button>
               ))}
             </div>
@@ -258,68 +282,148 @@ const Booth = () => {
         </div>
       </div>
 
-      {/* AREA KAMERA */}
-      <div className="flex-1 relative bg-gray-50 overflow-hidden flex items-center justify-center p-4">
-        <div className="relative w-full max-w-4xl aspect-[4/3] bg-black rounded-3xl overflow-hidden shadow-2xl ring-8 ring-white">
-          {countdown > 0 && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-              <span className="text-[120px] font-black text-white animate-bounce drop-shadow-lg">
-                {countdown}
-              </span>
-            </div>
-          )}
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            className="w-full h-full object-cover transform -scale-x-100"
-            style={{ filter: filter }}
-          />
+      {/* MAIN CONTENT: FLEX ROW (Camera Kiri - Sidebar Kanan) */}
+      <div className="flex-1 flex overflow-hidden bg-gray-50">
+        {/* 1. AREA KAMERA (Tengah/Kiri) */}
+        <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
+          {/* Wrapper Kamera dengan Aspect Ratio 4:3 */}
+          <div className="relative w-full max-w-2xl aspect-[4/3] bg-black rounded-3xl overflow-hidden shadow-2xl ring-4 ring-white">
+            {countdown > 0 && (
+              <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                <span className="text-[100px] font-black text-white animate-bounce drop-shadow-lg">
+                  {countdown}
+                </span>
+              </div>
+            )}
 
-          {/* Indikator Jumlah Foto */}
-          {isCapturing && (
-            <div className="absolute top-4 right-4 bg-black/50 backdrop-blur px-4 py-2 rounded-full text-white font-bold">
-              Mode: {selectedLayout.label}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              className="w-full h-full object-cover transform -scale-x-100"
+              style={{ filter: filter }}
+            />
+
+            {/* Indikator Status */}
+            {isCapturing && (
+              <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">
+                Merekam... {capturedImages.length + 1}/{selectedLayout.count}
+              </div>
+            )}
+          </div>
+
+          {/* Filter Bar (Di bawah kamera) */}
+          <div className="mt-6 flex gap-4 overflow-x-auto w-full max-w-xl px-4 pb-2 custom-scrollbar justify-center">
+            {filters.map((f) => (
+              <button
+                key={f.name}
+                onClick={() => setFilter(f.value)}
+                className={`flex flex-col items-center gap-2 min-w-[60px] transition ${
+                  filter === f.value
+                    ? "scale-110 opacity-100"
+                    : "opacity-50 hover:opacity-100"
+                }`}
+              >
+                <div
+                  className="w-10 h-10 rounded-full border-2 border-white shadow-md"
+                  style={{ backgroundColor: f.color }}
+                ></div>
+                <span className="text-[10px] font-bold text-gray-500 uppercase">
+                  {f.name}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 2. SIDEBAR HASIL (Kanan) */}
+        <div className="w-24 md:w-32 bg-white border-l border-gray-100 flex flex-col items-center py-4 gap-3 overflow-y-auto z-20 shadow-[-5px_0_15px_rgba(0,0,0,0.02)]">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+            Hasil
+          </span>
+
+          {/* Generate Placeholder Slot */}
+          {Array.from({ length: selectedLayout.count }).map((_, idx) => (
+            <div
+              key={idx}
+              className="relative w-20 h-20 md:w-24 md:h-24 bg-gray-100 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden shrink-0 transition-all duration-300"
+            >
+              {capturedImages[idx] ? (
+                // Jika foto sudah ada
+                <div className="relative w-full h-full group">
+                  <img
+                    src={capturedImages[idx]}
+                    alt="Captured"
+                    className="w-full h-full object-cover"
+                  />
+                  {/* Overlay nomor urut */}
+                  <div className="absolute bottom-1 right-1 bg-black/50 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full">
+                    {idx + 1}
+                  </div>
+                </div>
+              ) : (
+                // Jika masih kosong
+                <span className="text-gray-300 font-bold text-xl">
+                  {idx + 1}
+                </span>
+              )}
             </div>
+          ))}
+
+          {/* Tombol Reset Kecil di Sidebar */}
+          {capturedImages.length > 0 && !isCapturing && (
+            <button
+              onClick={handleRetakeAll}
+              className="mt-auto mb-20 p-2 text-gray-400 hover:text-red-500 transition"
+              title="Hapus Semua"
+            >
+              <RefreshCw size={20} />
+            </button>
           )}
         </div>
       </div>
 
-      {/* FILTER & SHUTTER BAR */}
-      <div className="h-48 bg-white flex flex-col items-center py-4 gap-4 shadow-[0_-5px_30px_rgba(0,0,0,0.05)] z-20 rounded-t-3xl">
-        <div className="flex gap-4 overflow-x-auto w-full max-w-2xl px-6 pb-2 custom-scrollbar justify-center">
-          {filters.map((f) => (
+      {/* BOTTOM ACTION BAR (Tombol Shutter / Next) */}
+      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white via-white to-transparent flex items-center justify-center z-40 pointer-events-none">
+        <div className="pointer-events-auto mb-6">
+          {!isSessionDone ? (
+            // Tombol Shutter (Mulai Foto)
             <button
-              key={f.name}
-              onClick={() => setFilter(f.value)}
-              className={`flex flex-col items-center gap-2 min-w-[70px] transition ${
-                filter === f.value ? "scale-110" : "opacity-60"
+              onClick={startPhotoSession}
+              disabled={isCapturing}
+              className={`w-16 h-16 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 ${
+                isCapturing
+                  ? "bg-gray-300 scale-90"
+                  : "bg-[#ff4785] hover:bg-[#ff2e73] hover:scale-105 hover:shadow-2xl"
               }`}
             >
-              <div
-                className="w-12 h-12 rounded-full border-2 border-gray-100 shadow-sm"
-                style={{ backgroundColor: f.color }}
-              ></div>
-              <span className="text-xs font-semibold text-gray-500">
-                {f.name}
-              </span>
+              {isCapturing ? (
+                <span className="text-2xl animate-spin">⏳</span>
+              ) : (
+                <div className="w-6 h-6 rounded-full border-[3px] border-white"></div>
+              )}
             </button>
-          ))}
-        </div>
-
-        <button
-          onClick={startPhotoSession}
-          disabled={isCapturing}
-          className="w-20 h-20 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-full flex items-center justify-center shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:grayscale"
-        >
-          {isCapturing ? (
-            <span className="animate-spin text-2xl">⏳</span>
           ) : (
-            <div className="w-8 h-8 rounded-full border-4 border-white"></div>
+            // Tombol Berikutnya (Muncul setelah selesai)
+            <div className="flex gap-4 animate-fade-in-up">
+              <button
+                onClick={handleRetakeAll}
+                className="px-6 py-3 rounded-full bg-white border border-gray-300 text-gray-600 font-bold shadow-lg hover:bg-gray-50 flex items-center gap-2"
+              >
+                <RefreshCw size={18} /> Ulang
+              </button>
+              <button
+                onClick={handleNext}
+                className="px-8 py-3 rounded-full bg-[#ff4785] text-white font-bold shadow-[0_4px_15px_rgba(255,71,133,0.4)] hover:bg-[#ff2e73] hover:scale-105 transition flex items-center gap-2"
+              >
+                Berikutnya <Check size={18} />
+              </button>
+            </div>
           )}
-        </button>
+        </div>
       </div>
     </div>
   );
 };
 export default Booth;
+git add .
